@@ -1,0 +1,15 @@
+<!doctype html>
+<title>Entry</title>
+{{ collection.description | markdown }}
+<form method="POST" action="/{{ collection.id }}/submit">
+    {# TODO Display collection model and parameters #}
+    {{ form.csrf_token }}
+    {{ form.session_token }}
+    {% for i in range(attributes|count) %}
+        {{ form['field_' ~ i].label }}
+        {{ form['field_' ~ i] }}
+        <br>
+    {% endfor %}
+    <input type="submit" value="Go">
+</form>
+<p>This form expires at {{ collection.response_end_time }}</p>
