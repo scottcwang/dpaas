@@ -1,7 +1,7 @@
 from flask import request, render_template, make_response
 from flask_restful import Resource
 
-from Model import db, Collection, Entry
+from Model import db, Collection, Entry, Status
 
 from resources.Token import redis_conn, consume_collection_token
 
@@ -19,7 +19,7 @@ def process(collection_id):
     collection = Collection.query.get(collection_id)
     if not collection:
         return
-    collection.status = 1
+    collection.status = Status.running
     db.session.commit()
 
     attribute_x_indices = [index for index in range(len(collection.attributes)) if index != collection.attribute_y_index]
@@ -36,7 +36,7 @@ def process(collection_id):
     fit = model.fit(X, y)
     # dump pickled fit object into database
     collection.result = pickle.dumps(fit)
-    collection.status = 2
+    collection.status = Status.complete
     db.session.add(collection)
     # Delete all entries
     for entry in Entry.query.filter_by(collection_id = collection.id).all():
@@ -51,7 +51,7 @@ class EnqueueResource(Resource):
         collection = consume_collection_token_result[0]
         if collection.status is not None:
             return 'Already enqueued', 400
-        collection.status = 0
+        collection.status = Status.enqueued
         db.session.add(collection)
         db.session.commit()
         q.enqueue(process, collection_id)

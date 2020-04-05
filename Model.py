@@ -5,8 +5,15 @@ from flask_sqlalchemy import SQLAlchemy
 
 from datetime import datetime
 
+from enum import Enum
+
 ma = Marshmallow()
 db = SQLAlchemy()
+
+class Status(Enum):
+    enqueued = 0
+    running = 1
+    complete = 2
 
 class Collection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -22,7 +29,7 @@ class Collection(db.Model):
     public_key = db.Column(db.LargeBinary(), nullable=False)
 
     result = db.Column(db.PickleType)
-    status = db.Column(db.Integer) # null = not started, 0 = enqueued, 1 = running, 2 = complete
+    status = db.Column(db.Enum(Status))
 
     def __init__(self, attributes, attribute_y_index, fit_model, fit_arguments, description, response_start_time, response_end_time, public_key):
         self.attributes = attributes
