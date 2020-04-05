@@ -5,9 +5,11 @@ from Model import db, Collection, Status
 
 from resources.Token import consume_collection_token
 
+
 class StatusResource(Resource):
     def get(self, collection_id, token):
-        consume_collection_token_result = consume_collection_token(collection_id, token, 'status')
+        consume_collection_token_result = consume_collection_token(
+            collection_id, token, 'status')
         if consume_collection_token_result[1] != 200:
             return consume_collection_token_result
         collection = consume_collection_token_result[0]

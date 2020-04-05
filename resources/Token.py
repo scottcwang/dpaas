@@ -13,6 +13,7 @@ import jwt
 
 redis_conn = FlaskRedis()
 
+
 def consume_collection_token(collection_id, token, action):
     collection = Collection.query.get(collection_id)
     if not collection:
@@ -20,7 +21,8 @@ def consume_collection_token(collection_id, token, action):
     # TODO prevent if fit already enqueued or complete
     if action == 'entry' and (datetime.now() < collection.response_start_time or datetime.now() > collection.response_end_time):
         return 'Not within collection interval', 410
-    public_key = load_der_public_key(collection.public_key, backend=default_backend())
+    public_key = load_der_public_key(
+        collection.public_key, backend=default_backend())
     pem_public_key = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -37,7 +39,9 @@ def consume_collection_token(collection_id, token, action):
         return 'Token contains nonce for non-entry action', 400
     if 'iat' not in jwt_payload:
         return 'Token does not contain issuance time', 400
-    key = action + ':' + str(collection_id) + ((':' + str(jwt_payload['jti'])) if action == 'entry' else '')
+    key = action + ':' + \
+        str(collection_id) + \
+        ((':' + str(jwt_payload['jti'])) if action == 'entry' else '')
     value = redis_conn.get(key)
     if not value:
         return 'A corresponding session was not found', 403
@@ -46,6 +50,7 @@ def consume_collection_token(collection_id, token, action):
         return 'Token not issued at same time as session request', 403
     redis_conn.delete(key)
     return collection, 200
+
 
 class TokenResource(Resource):
     def post(self, collection_id, action):
@@ -64,7 +69,8 @@ class TokenResource(Resource):
             nonce = None
         try:
             redis_conn.setex(
-                action + ':' + str(collection_id) + ((':' + str(nonce)) if nonce else ''),
+                action + ':' + str(collection_id) +
+                ((':' + str(nonce)) if nonce else ''),
                 600,
                 datetime.now().timestamp()
             )

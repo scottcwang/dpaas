@@ -10,19 +10,22 @@ from enum import Enum
 ma = Marshmallow()
 db = SQLAlchemy()
 
+
 class Status(Enum):
     enqueued = 0
     running = 1
     complete = 2
 
+
 class Collection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
-    attributes = db.Column(db.PickleType) # list of strings
-    attribute_y_index = db.Column(db.Integer) # index of y-attribute in attributes (if any)
+    attributes = db.Column(db.PickleType)  # list of strings
+    # index of y-attribute in attributes (if any)
+    attribute_y_index = db.Column(db.Integer)
     fit_model = db.Column(db.String, nullable=False)
-    fit_arguments = db.Column(db.PickleType) # dict of arguments to fit
-    description = db.Column(db.String(1000), nullable=False) # markdown
+    fit_arguments = db.Column(db.PickleType)  # dict of arguments to fit
+    description = db.Column(db.String(1000), nullable=False)  # markdown
     response_start_time = db.Column(db.TIMESTAMP, nullable=False)
     response_end_time = db.Column(db.TIMESTAMP, nullable=False)
 
@@ -41,12 +44,13 @@ class Collection(db.Model):
         self.response_end_time = response_end_time
         self.public_key = public_key
 
+
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     collection_id = db.Column(db.Integer, db.ForeignKey('collection.id'))
     modification_key = db.Column(db.LargeBinary(), nullable=False)
     token = db.Column(db.String(), nullable=False)
-    values = db.Column(db.PickleType) # list of floats
+    values = db.Column(db.PickleType)  # list of floats
 
     collection = db.relationship('Collection')
 

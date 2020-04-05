@@ -12,6 +12,8 @@ api = Api(api_bp)
 
 api.add_resource(RootResource, '/')
 api.add_resource(TokenResource, '/<int:collection_id>/token/<string:action>')
-api.add_resource(EntryResource, '/<int:collection_id>/entry/<string:token>', '/<int:collection_id>/submit')
-api.add_resource(EnqueueResource, '/<int:collection_id>/enqueue/<string:token>')
+api.add_resource(EntryResource, '/<int:collection_id>/entry/<string:token>',
+                 '/<int:collection_id>/submit')
+api.add_resource(
+    EnqueueResource, '/<int:collection_id>/enqueue/<string:token>')
 api.add_resource(StatusResource, '/<int:collection_id>/status/<string:token>')

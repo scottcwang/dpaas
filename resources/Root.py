@@ -9,17 +9,21 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from cryptography.hazmat.primitives import serialization
 
+
 class RootInputSchema(Schema):
     attributes = fields.List(fields.Str(), required=True)
     fit_model = fields.Str(required=True)
     attribute_y_index = fields.Int()
-    fit_arguments = fields.Dict(keys=fields.Str(), values=fields.Raw(), required=True)
+    fit_arguments = fields.Dict(
+        keys=fields.Str(), values=fields.Raw(), required=True)
     description = fields.Str(required=True)
     public_key = fields.Str(required=True)
     response_start_time = fields.DateTime(required=True)
     response_end_time = fields.DateTime(required=True)
 
+
 root_input_schema = RootInputSchema()
+
 
 class RootResource(Resource):
     def post(self):
@@ -35,7 +39,8 @@ class RootResource(Resource):
         # cert = x509.load_pem_x509_certificate(pem_data, default_backend())
         # public_key = cert.public_key()
         try:
-            public_key = load_pem_public_key(data['public_key'].encode('utf-8'), backend=default_backend())
+            public_key = load_pem_public_key(
+                data['public_key'].encode('utf-8'), backend=default_backend())
             public_key = public_key.public_bytes(
                 encoding=serialization.Encoding.DER,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -55,14 +60,14 @@ class RootResource(Resource):
             return 'attribute_y_index invalid', 400
 
         collection = Collection(
-            attributes = data['attributes'],
-            attribute_y_index = data['attribute_y_index'],
-            fit_model = data['fit_model'],
-            fit_arguments = data['fit_arguments'],
-            description = data['description'],
-            response_start_time = data['response_start_time'],
-            response_end_time = data['response_end_time'],
-            public_key = public_key
+            attributes=data['attributes'],
+            attribute_y_index=data['attribute_y_index'],
+            fit_model=data['fit_model'],
+            fit_arguments=data['fit_arguments'],
+            description=data['description'],
+            response_start_time=data['response_start_time'],
+            response_end_time=data['response_end_time'],
+            public_key=public_key
         )
 
         db.session.add(collection)
