@@ -8,6 +8,8 @@ First, update [config.py](https://github.com/scottcwang/dpaas/blob/master/config
 
 ```
 pip install -r requirements.txt
+rm -rf ./migrations
+DPAAS_CONFIG_PATH='config.py'
 python migrate.py db init
 python migrate.py db migrate
 python migrate.py db upgrade
