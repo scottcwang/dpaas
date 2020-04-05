@@ -10,3 +10,8 @@ REDIS_URL = "redis://:MJqLybEKMYlbzQrS6QjdtbBw7jxn8zDY@redis-13595.c98.us-east-1
 SECRET_KEY = os.urandom(32)
 
 REDIS_QUEUE_IS_ASYNC = False
+
+# How to run from PS:
+# $env:DPAAS_CONFIG_PATH = "config.py"
+# $env:FLASK_APP = "run.py"
+# flask run
