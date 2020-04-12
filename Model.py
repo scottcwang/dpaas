@@ -48,14 +48,10 @@ class Collection(db.Model):
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     collection_id = db.Column(db.Integer, db.ForeignKey('collection.id'))
-    modification_key = db.Column(db.LargeBinary(), nullable=False)
-    token = db.Column(db.String(), nullable=False)
     values = db.Column(db.PickleType)  # list of floats
 
     collection = db.relationship('Collection')
 
-    def __init__(self, collection_id, modification_key, token, values):
+    def __init__(self, collection_id, values):
         self.collection_id = collection_id
-        self.modification_key = modification_key
-        self.token = token
         self.values = values

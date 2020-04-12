@@ -208,39 +208,6 @@ r = requests.post(
 )
 assert r.status_code == 200
 
-modification_url = r.json()
-
-r = requests.get(url=modification_url)
-assert r.status_code == 200
-soup = BeautifulSoup(r.content, features="html.parser")
-assert float(soup.find(id='field_0')['value']) == 0.0
-assert float(soup.find(id='field_1')['value']) == 1.0
-assert float(soup.find(id='field_2')['value']) == 2.0
-
-csrf_token_form = soup.find(id='csrf_token')['value']
-session_token = soup.find(id='session_token')['value']
-csrf_token_cookie = r.cookies['session']
-r = requests.post(
-    url=hostname + '/' + str(collection_id) + '/submit',
-    data={
-        'csrf_token': csrf_token_form,
-        'session_token': session_token,
-        'field_0': 3,
-        'field_1': 4,
-        'field_2': 5
-    },
-    cookies={
-        'session': csrf_token_cookie
-    }
-)
-assert r.status_code == 200
-
-r = requests.get(url=modification_url)
-assert r.status_code == 200
-soup = BeautifulSoup(r.content, features="html.parser")
-assert float(soup.find(id='field_0')['value']) == 3.0
-assert float(soup.find(id='field_1')['value']) == 4.0
-assert float(soup.find(id='field_2')['value']) == 5.0
 
 # add a second value
 
