@@ -31,10 +31,13 @@ class Collection(db.Model):
 
     public_key = db.Column(db.LargeBinary(), nullable=False)
 
+    entry_private_key = db.Column(db.LargeBinary(), nullable=False)
+    entry_public_key = db.Column(db.LargeBinary(), nullable=False)
+
     result = db.Column(db.PickleType)
     status = db.Column(db.Enum(Status))
 
-    def __init__(self, attributes, attribute_y_index, fit_model, fit_arguments, description, response_start_time, response_end_time, public_key):
+    def __init__(self, attributes, attribute_y_index, fit_model, fit_arguments, description, response_start_time, response_end_time, public_key, entry_private_key, entry_public_key):
         self.attributes = attributes
         self.attribute_y_index = attribute_y_index
         self.fit_model = fit_model
@@ -43,6 +46,8 @@ class Collection(db.Model):
         self.response_start_time = response_start_time
         self.response_end_time = response_end_time
         self.public_key = public_key
+        self.entry_private_key = entry_private_key
+        self.entry_public_key = entry_public_key
 
 
 class Entry(db.Model):

@@ -4,6 +4,9 @@ from marshmallow import Schema, fields, ValidationError
 
 from Model import *
 
+import nacl.utils
+import nacl.public
+
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
@@ -59,6 +62,9 @@ class RootResource(Resource):
         if data['attribute_y_index'] >= len(data['attributes']) or data['attribute_y_index'] < 0:
             return 'attribute_y_index invalid', 400
 
+        entry_private_key = nacl.public.PrivateKey.generate()
+        entry_public_key = entry_private_key.public_key
+
         collection = Collection(
             attributes=data['attributes'],
             attribute_y_index=data['attribute_y_index'],
@@ -67,7 +73,11 @@ class RootResource(Resource):
             description=data['description'],
             response_start_time=data['response_start_time'],
             response_end_time=data['response_end_time'],
-            public_key=public_key
+            public_key=public_key,
+            entry_private_key=entry_private_key.encode(
+                encoder=nacl.encoding.RawEncoder),
+            entry_public_key=entry_public_key.encode(
+                encoder=nacl.encoding.RawEncoder)
         )
 
         db.session.add(collection)
