@@ -11,9 +11,11 @@ api_bp = Blueprint('api', __name__)
 api = Api(api_bp)
 
 api.add_resource(RootResource, '/')
-api.add_resource(TokenResource, '/<int:collection_id>/token/<string:action>')
-api.add_resource(EntryResource, '/<int:collection_id>/entry/<string:token>',
-                 '/<int:collection_id>/submit')
 api.add_resource(
-    EnqueueResource, '/<int:collection_id>/enqueue/<string:token>')
-api.add_resource(StatusResource, '/<int:collection_id>/status/<string:token>')
+    TokenResource, '/<string:collection_id>/token/<string:action>')
+api.add_resource(EntryResource, '/<string:collection_id>/entry/<string:token>',
+                 '/<string:collection_id>/submit')
+api.add_resource(
+    EnqueueResource, '/<string:collection_id>/enqueue/<string:token>')
+api.add_resource(
+    StatusResource, '/<string:collection_id>/status/<string:token>')
