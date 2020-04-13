@@ -9,7 +9,10 @@ from wtforms.validators import InputRequired
 
 from datetime import datetime, timedelta
 import secrets
+
 import jwt
+import nacl.utils
+import nacl.public
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
@@ -73,7 +76,13 @@ class EntryResource(Resource):
 
         values = [getattr(form, 'field_' + str(attribute_index)
                           ).data for attribute_index in range(len(collection.attributes))]
-        entry = Entry(collection_id, values)
+        values_json_bytes = ','.join(map(str, values)).encode()
+        entry_public_key = nacl.public.PublicKey(
+            collection.entry_public_key, encoder=nacl.encoding.RawEncoder)
+        values_json_box = nacl.public.SealedBox(
+            entry_public_key)
+        values_json_encrypt = values_json_box.encrypt(values_json_bytes)
+        entry = Entry(collection_id, values_json_encrypt)
         db.session.add(entry)
         db.session.commit()
         return None

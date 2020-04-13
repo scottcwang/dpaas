@@ -53,7 +53,7 @@ class Collection(db.Model):
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     collection_id = db.Column(db.Integer, db.ForeignKey('collection.id'))
-    values = db.Column(db.PickleType)  # list of floats
+    values = db.Column(db.LargeBinary())
 
     collection = db.relationship('Collection')
 

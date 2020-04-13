@@ -5,6 +5,7 @@ from Model import db, Collection, Entry, Status
 
 from resources.Token import redis_conn, consume_collection_token
 
+import nacl.public
 from rq import Queue
 
 import diffprivlib.models
@@ -25,14 +26,23 @@ def process(collection_id):
 
     attribute_x_indices = [index for index in range(
         len(collection.attributes)) if index != collection.attribute_y_index]
+    collection_private_key = nacl.public.PrivateKey(
+        collection.entry_private_key, encoder=nacl.encoding.RawEncoder)
+    sealed_box = nacl.public.SealedBox(collection_private_key)
+    entries = Entry.query.filter_by(collection_id=collection.id).all()
+    entries_decrypt = map(lambda entry:
+                          sealed_box.decrypt(
+                              entry.values, encoder=nacl.encoding.RawEncoder), entries)
+    entries_decode = map(lambda entry_decrypt:
+                         bytes.decode(entry_decrypt).split(','), entries_decrypt)
+    entries_float = map(lambda entry_decode: list(map(
+        float, entry_decode)), entries_decode)
 
-    X, y = zip(*[
-        (
-            [entry.values[index] for index in attribute_x_indices],
-            entry.values[collection.attribute_y_index]
-        )
-        for entry in Entry.query.filter_by(collection_id=collection.id).all()
-    ])
+    X, y = zip(*map(lambda entry_float: (
+        [entry_float[index] for index in attribute_x_indices],
+        entry_float[collection.attribute_y_index]),
+        entries_float)
+    )
 
     model = getattr(diffprivlib.models, collection.fit_model)(
         **collection.fit_arguments)
