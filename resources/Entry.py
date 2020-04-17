@@ -9,10 +9,12 @@ from wtforms.validators import InputRequired
 
 from datetime import datetime, timedelta
 import secrets
+import base64
 
 import jwt
 import nacl.utils
 import nacl.public
+import nacl.signing
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
@@ -38,16 +40,59 @@ def create_form(attributes, session_token):
 
 
 class EntryResource(Resource):
-    def get(self, collection_id, token):
-        session_token = secrets.token_urlsafe()
-        consume_collection_token_result = consume_collection_token(
-            collection_id, token, 'entry')
-        if consume_collection_token_result[1] != 200:
-            return consume_collection_token_result
-        collection = consume_collection_token_result[0]
+    # TODO change verb. This GET is state-changing
+    def get(self, collection_id, voucher):
+        collection = Collection.query.get(collection_id)
+        if not collection:
+            return 'Collection ID not found', 404
+        if datetime.now() < collection.response_start_time or datetime.now() > collection.response_end_time:
+            return 'Not within collection interval', 410
+        try:
+            verify_key = nacl.signing.VerifyKey(collection.public_key)
+            voucher_contents = verify_key.verify(
+                base64.urlsafe_b64decode(voucher.encode()))
+        except Exception as e:
+            return 'Voucher could not be verified', 400
+
+        try:
+            client_serial_str, entry_serial_str, issued_at_str, * \
+                tail = voucher_contents.decode().split(',')
+        except:
+            return 'Voucher contains fewer than three values', 400
+
+        if len(tail) > 0:
+            return 'Voucher contains more than three values', 400
+
+        client_serial = client_serial_str
+        entry_serial = entry_serial_str
+        try:
+            issued_at = datetime.fromtimestamp(float(issued_at_str))
+        except:
+            return 'Timestamp invalid'
+
+        entry = Entry.query.get(entry_serial)
+        if not entry:
+            return 'Entry does not exist', 404
+        if entry.collection_id != collection.id:
+            # TODO Leaks existence of entry serial
+            return 'Entry serial not for this collection', 400
+        if not entry.client_serial:
+            return 'Voucher already redeemed for a form', 400
+        if entry.client_serial != client_serial:
+            return 'Voucher client serial does not match registration', 400
+
+        if abs(entry.issued_at - issued_at) > timedelta(seconds=60):
+            return 'Voucher not issued and registered at same time', 400
+
+        entry.client_serial = None
+        db.session.add(entry)
+        db.session.commit()
+
         attributes = [(attribute, '')
                       for attribute in collection.attributes]
+        session_token = secrets.token_urlsafe(16)
         # produce a submit session
+        # TODO migrate to Entry table
         try:
             redis_conn.setex('submit:' + str(collection_id) +
                              ':' + str(session_token), 600, '')

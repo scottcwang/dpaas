@@ -4,8 +4,9 @@ from marshmallow import Schema, fields, ValidationError
 
 from Model import *
 
-import nacl.utils
-import nacl.public
+import nacl.signing
+import nacl.encoding
+import base64
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
@@ -38,17 +39,11 @@ class RootResource(Resource):
         except ValidationError as error:
             return 'JSON payload does not conform to schema', 400
 
-        # TODO instead of this, validate as certificate
-        # cert = x509.load_pem_x509_certificate(pem_data, default_backend())
-        # public_key = cert.public_key()
+        # TODO validate public key online
         try:
-            public_key = load_pem_public_key(
-                data['public_key'].encode('utf-8'), backend=default_backend())
-            public_key = public_key.public_bytes(
-                encoding=serialization.Encoding.DER,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-        except:
+            public_key = nacl.signing.VerifyKey(
+                data['public_key'], nacl.encoding.URLSafeBase64Encoder)
+        except Exception as e:
             return 'Public key could not be parsed', 400
         # TODO Challenge ownership of public key
 
@@ -73,7 +68,7 @@ class RootResource(Resource):
             description=data['description'],
             response_start_time=data['response_start_time'],
             response_end_time=data['response_end_time'],
-            public_key=public_key,
+            public_key=public_key.encode(),
             entry_private_key=entry_private_key.encode(
                 encoder=nacl.encoding.RawEncoder),
             entry_public_key=entry_public_key.encode(
@@ -83,4 +78,7 @@ class RootResource(Resource):
         db.session.add(collection)
         db.session.commit()
 
-        return collection.id, 201
+        return_value = ','.join([str(collection.id), base64.urlsafe_b64encode(
+            entry_public_key.encode()).decode()])
+
+        return return_value, 201
