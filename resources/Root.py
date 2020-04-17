@@ -69,10 +69,8 @@ class RootResource(Resource):
             response_start_time=data['response_start_time'],
             response_end_time=data['response_end_time'],
             public_key=public_key.encode(),
-            entry_private_key=entry_private_key.encode(
-                encoder=nacl.encoding.RawEncoder),
-            entry_public_key=entry_public_key.encode(
-                encoder=nacl.encoding.RawEncoder)
+            entry_private_key=entry_private_key.encode(),
+            entry_public_key=entry_public_key.encode()
         )
 
         db.session.add(collection)

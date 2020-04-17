@@ -27,12 +27,12 @@ def process(collection_id):
     attribute_x_indices = [index for index in range(
         len(collection.attributes)) if index != collection.attribute_y_index]
     collection_private_key = nacl.public.PrivateKey(
-        collection.entry_private_key, encoder=nacl.encoding.RawEncoder)
+        collection.entry_private_key)
     sealed_box = nacl.public.SealedBox(collection_private_key)
     entries = Entry.query.filter_by(collection_id=collection.id).all()
     entries_decrypt = map(lambda entry:
                           sealed_box.decrypt(
-                              entry.values, encoder=nacl.encoding.RawEncoder), entries)
+                              entry.values), entries)
     entries_decode = map(lambda entry_decrypt:
                          bytes.decode(entry_decrypt).split(','), entries_decrypt)
     entries_float = map(lambda entry_decode: list(map(
