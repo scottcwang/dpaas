@@ -30,18 +30,16 @@ def process(collection_id):
         collection.entry_private_key)
     sealed_box = nacl.public.SealedBox(collection_private_key)
     entries = Entry.query.filter_by(collection_id=collection.id).all()
-    entries_decrypt = map(lambda entry:
-                          sealed_box.decrypt(
-                              entry.values), entries)
-    entries_decode = map(lambda entry_decrypt:
-                         bytes.decode(entry_decrypt).split(','), entries_decrypt)
-    entries_float = map(lambda entry_decode: list(map(
-        float, entry_decode)), entries_decode)
+    entries_decrypt = [sealed_box.decrypt(entry.values) for entry in entries]
+    entries_decode = [bytes.decode(entry_decrypt).split(
+        ',') for entry_decrypt in entries_decrypt]
+    entries_float = [list(map(
+        float, entry_decode)) for entry_decode in entries_decode]
 
-    X, y = zip(*map(lambda entry_float: (
+    X, y = zip(*[(
         [entry_float[index] for index in attribute_x_indices],
-        entry_float[collection.attribute_y_index]),
-        entries_float)
+        entry_float[collection.attribute_y_index])
+        for entry_float in entries_float]
     )
 
     model = getattr(diffprivlib.models, collection.fit_model)(
