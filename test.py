@@ -107,16 +107,9 @@ r = requests.post(
 assert r.status_code == 201
 future_collection_id, _ = r.json().split(',')
 
-r = requests.post(url=hostname + '/' + str(collection_id) + '/token/a')
-assert r.status_code == 400 and r.json() == 'Unknown action'
-
 r = requests.post(url=hostname + '/' +
                   str(future_collection_id) + '/voucher')
 assert r.status_code == 410 and r.json() == 'Not within collection interval'
-
-r = requests.post(url=hostname + '/' +
-                  str(future_collection_id) + '/token/status')
-assert r.status_code == 201
 
 r = requests.post(url=hostname + '/0/voucher')
 assert r.status_code == 404
@@ -200,13 +193,14 @@ assert r.status_code == 200
 soup = BeautifulSoup(r.content, features="html.parser")
 csrf_token_form = soup.find(id='csrf_token')['value']
 session_token = soup.find(id='session_token')['value']
+entry_serial = soup.find(id='entry_serial').string
 csrf_token_cookie = r.cookies['session']
 
-r = requests.post(url=hostname + '/0/submit')
+r = requests.post(url=hostname + '/submit/0')
 assert r.status_code == 404
 
 r = requests.post(
-    url=hostname + '/' + str(collection_id) + '/submit',
+    url=hostname + '/submit/' + str(entry_serial),
     data={
         'csrf_token': csrf_token_form,
         'session_token': session_token,
@@ -249,13 +243,14 @@ assert r.status_code == 200
 soup = BeautifulSoup(r.content, features="html.parser")
 csrf_token_form = soup.find(id='csrf_token')['value']
 session_token = soup.find(id='session_token')['value']
+entry_serial = soup.find(id='entry_serial').string
 csrf_token_cookie = r.cookies['session']
 
-r = requests.post(url=hostname + '/0/submit')
+r = requests.post(url=hostname + '/submit/0')
 assert r.status_code == 404
 
 r = requests.post(
-    url=hostname + '/' + str(collection_id) + '/submit',
+    url=hostname + '/submit/' + str(entry_serial),
     data={
         'csrf_token': csrf_token_form,
         'session_token': session_token,
@@ -269,72 +264,16 @@ r = requests.post(
 )
 assert r.status_code == 200
 
-r = requests.get(hostname + '/' + str(collection_id) + '/status/' + client_jwt)
-assert r.status_code == 400 and r.json(
-) == 'Token contains nonce for non-entry action'
-
-client_jwt = jwt.encode(
-    payload={
-        'iat': datetime.now().timestamp()
-    },
-    key=client_signing_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption()
-    ), algorithm='RS256'
-).decode('utf-8')
-
-r = requests.get(hostname + '/' + str(collection_id) + '/status/' + client_jwt)
-assert r.status_code == 403 and r.json() == 'A corresponding session was not found'
-
-r = requests.post(hostname + '/' + str(collection_id) + '/token/status')
-assert r.status_code == 201
-
-r = requests.get(hostname + '/' + str(collection_id) + '/status/' + client_jwt)
+r = requests.get(hostname + '/' + str(collection_id) + '/status')
 assert r.status_code == 204
 
-# cross-use a token
-r = requests.post(hostname + '/' + str(collection_id) +
-                  '/enqueue/' + client_jwt)
-assert r.status_code == 403 and r.json() == 'A corresponding session was not found'
-
-r = requests.post(hostname + '/' + str(collection_id) + '/token/enqueue')
-assert r.status_code == 201
-
-client_jwt = jwt.encode(
-    payload={
-        'iat': datetime.now().timestamp()
-    },
-    key=client_signing_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption()
-    ), algorithm='RS256'
-).decode('utf-8')
-
-r = requests.post(hostname + '/' + str(collection_id) +
-                  '/enqueue/' + client_jwt)
+r = requests.post(hostname + '/' + str(collection_id) + '/enqueue')
 assert r.status_code == 202
 
 content = None
 
 while content == None:
-    r = requests.post(hostname + '/' + str(collection_id) + '/token/status')
-    assert r.status_code == 201
-
-    client_jwt = jwt.encode(
-        payload={
-            'iat': datetime.now().timestamp()
-        },
-        key=client_signing_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption()
-        ), algorithm='RS256'
-    ).decode('utf-8')
-
-    r = requests.get(hostname + '/' + str(collection_id) +
-                     '/status/' + client_jwt)
+    r = requests.get(hostname + '/' + str(collection_id) + '/status')
     if r.status_code == 200:
         content = r.content
 

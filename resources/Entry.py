@@ -100,20 +100,21 @@ class EntryResource(Resource):
             return 'Redis error', 500
         headers = {'Content-Type': 'text/html'}
         form_class = create_form(attributes, session_token)
-        return make_response(render_template('entry.html', form=form_class(), attributes=attributes, collection=collection, session_token=session_token), 200, headers)
+        return make_response(render_template('entry.html', form=form_class(), attributes=attributes, collection=collection, entry_serial=entry_serial, session_token=session_token), 200, headers)
 
-    def post(self, collection_id):
+    def post(self, entry_serial):
         # recreate form schema for validation
-        collection = Collection.query.get(collection_id)
-        if not collection:
-            return 'Collection ID not found', 404
+        entry = Entry.query.get(entry_serial)
+        if not entry:
+            return 'Entry does not exist', 404
+        collection = entry.collection
         form = create_form([(attribute, '')
                             for attribute in collection.attributes], '')()
         if not form.validate():
             return 'Form data does not conform to schema, or CSRF token does not match', 400
 
         # consume a submit session
-        key = 'submit:' + str(collection_id) + ':' + form.session_token.data
+        key = 'submit:' + str(collection.id) + ':' + form.session_token.data
         session_value = redis_conn.get(key).decode('utf-8')
         if session_value is None:  # no session exists
             return 'Session does not exist', 403
@@ -126,7 +127,7 @@ class EntryResource(Resource):
         values_json_box = nacl.public.SealedBox(
             entry_public_key)
         values_json_encrypt = values_json_box.encrypt(values_json_bytes)
-        entry = Entry(collection_id, values_json_encrypt)
+        entry.values = values_json_encrypt
         db.session.add(entry)
         db.session.commit()
         return None

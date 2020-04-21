@@ -3,7 +3,7 @@ from flask_restful import Resource
 
 from Model import db, Collection, Entry, Status
 
-from resources.Token import redis_conn, consume_collection_token
+from resources.Token import redis_conn
 
 import nacl.public
 from rq import Queue
@@ -58,12 +58,10 @@ def process(collection_id):
 
 
 class EnqueueResource(Resource):
-    def post(self, collection_id, token):
-        consume_collection_token_result = consume_collection_token(
-            collection_id, token, 'enqueue')
-        if consume_collection_token_result[1] != 200:
-            return consume_collection_token_result
-        collection = consume_collection_token_result[0]
+    def post(self, collection_id):
+        collection = Collection.query.get(collection_id)
+        if not collection:
+            return 'Collection ID not found', 404
         if collection.status is not None:
             return 'Already enqueued', 400
         collection.status = Status.enqueued
