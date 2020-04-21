@@ -17,3 +17,4 @@ diffprivlib
 pyjwt
 requests
 beautifulsoup4
+pynacl

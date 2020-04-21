@@ -1,26 +1,23 @@
 import jwt
 import secrets
 import pickle
+import base64
 import requests
 from datetime import datetime, timedelta
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 from diffprivlib.models import pca
+import nacl.signing
 
 from bs4 import BeautifulSoup
 
 hostname = 'http://127.0.0.1:5000'
 
-client_private_key = rsa.generate_private_key(
-    public_exponent=65537,
-    key_size=2048,
-    backend=default_backend()
-)
-client_public_key_pem = client_private_key.public_key().public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo
-)
+client_signing_key = nacl.signing.SigningKey.generate()
+# client_public_key_encoded = str(client_signing_key.public_key.encode(encoder=nacl.encoding.URLSafeBase64Encoder)) # TODO figure out why nacl.encoding.*Encoder doesn't work
+client_public_key_encoded = base64.urlsafe_b64encode(
+    bytes(client_signing_key.verify_key)).decode()
 
 r = requests.post(url=hostname + '/', data='a')
 assert r.status_code == 400 and r.json() == 'Request is not JSON'
@@ -40,7 +37,7 @@ r = requests.post(
         'description': '# Title\nParagraph',
         'public_key': 'a',
         'response_start_time': datetime.now().isoformat(),
-        'response_end_time': (datetime.now() + timedelta(seconds=60)).isoformat()
+        'response_end_time': (datetime.now() + timedelta(minutes=60)).isoformat()
     })
 assert r.status_code == 400 and r.json() == 'Public key could not be parsed'
 
@@ -54,7 +51,7 @@ r = requests.post(
             'epsilon': 1
         },
         'description': '# Title\nParagraph',
-        'public_key': client_public_key_pem.decode('utf-8'),
+        'public_key': client_public_key_encoded,
         'response_start_time': datetime.now().isoformat(),
         'response_end_time': (datetime.now() + timedelta(seconds=60)).isoformat()
     })
@@ -70,9 +67,9 @@ r = requests.post(
             'epsilon': 1
         },
         'description': '# Title\nParagraph',
-        'public_key': client_public_key_pem.decode('utf-8'),
+        'public_key': client_public_key_encoded,
         'response_start_time': datetime.now().isoformat(),
-        'response_end_time': (datetime.now() + timedelta(seconds=60)).isoformat()
+        'response_end_time': (datetime.now() + timedelta(minutes=60)).isoformat()
     })
 assert r.status_code == 400 and r.json() == 'attribute_y_index invalid'
 
@@ -86,12 +83,12 @@ r = requests.post(
             'epsilon': 1
         },
         'description': '# Title\nParagraph',
-        'public_key': client_public_key_pem.decode('utf-8'),
+        'public_key': client_public_key_encoded,
         'response_start_time': datetime.now().isoformat(),
-        'response_end_time': (datetime.now() + timedelta(seconds=60)).isoformat()
+        'response_end_time': (datetime.now() + timedelta(minutes=60)).isoformat()
     })
 assert r.status_code == 201
-collection_id = r.json()
+collection_id, collection_public_key_b64 = r.json().split(',')
 
 r = requests.post(
     url=hostname + '/',
@@ -103,98 +100,107 @@ r = requests.post(
             'epsilon': 1
         },
         'description': '# Title\nParagraph',
-        'public_key': client_public_key_pem.decode('utf-8'),
-        'response_start_time': (datetime.now() + timedelta(seconds=60)).isoformat(),
-        'response_end_time': (datetime.now() + timedelta(seconds=120)).isoformat()
+        'public_key': client_public_key_encoded,
+        'response_start_time': (datetime.now() + timedelta(minutes=60)).isoformat(),
+        'response_end_time': (datetime.now() + timedelta(minutes=120)).isoformat()
     })
 assert r.status_code == 201
-future_collection_id = r.json()
-
-r = requests.post(url=hostname + '/' + str(collection_id) + '/token/a')
-assert r.status_code == 400 and r.json() == 'Unknown action'
+future_collection_id, _ = r.json().split(',')
 
 r = requests.post(url=hostname + '/' +
-                  str(future_collection_id) + '/token/entry')
+                  str(future_collection_id) + '/voucher')
 assert r.status_code == 410 and r.json() == 'Not within collection interval'
 
-r = requests.post(url=hostname + '/' +
-                  str(future_collection_id) + '/token/status')
-assert r.status_code == 201
-
-r = requests.post(url=hostname + '/0/token/entry')
+r = requests.post(url=hostname + '/0/voucher')
 assert r.status_code == 404
 
-r = requests.post(url=hostname + '/' + str(collection_id) + '/token/entry')
-assert r.status_code == 400 and r.json() == 'No nonce provided for entry action'
+r = requests.post(url=hostname + '/' + str(collection_id) + '/voucher')
+assert r.status_code == 400 and r.json(
+) == 'No client serial number provided for voucher registration'
 
-nonce = secrets.token_urlsafe()
+collection_public_key = nacl.public.PublicKey(
+    base64.urlsafe_b64decode(collection_public_key_b64))
+client_serial = secrets.token_bytes(16)
+box = nacl.public.Box(
+    client_signing_key.to_curve25519_private_key(), collection_public_key)
+client_serial_encrypt = box.encrypt(client_serial)
 
 r = requests.post(
-    url=hostname + '/' + str(collection_id) + '/token/entry',
-    data=nonce
+    url=hostname + '/' + str(collection_id) + '/voucher',
+    data=client_serial_encrypt
 )
 assert r.status_code == 201
+entry_serial = r.json()
 
-client_jwt = jwt.encode(
-    payload={
-        'jti': nonce,
-        'iat': datetime.now().timestamp()
-    },
-    key=client_private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption()
-    ), algorithm='RS256'
-).decode('utf-8')
+voucher = ','.join(
+    [base64.urlsafe_b64encode(client_serial).decode(), entry_serial, str(datetime.now().timestamp())])
+voucher_sign = client_signing_key.sign(voucher.encode())
+voucher_encode = base64.urlsafe_b64encode(voucher_sign).decode()
 
-r = requests.get(url=hostname + '/0/entry/' + client_jwt)
+r = requests.get(url=hostname + '/0/entry/' + voucher_encode)
 assert r.status_code == 404
 
 r = requests.get(url=hostname + '/' +
-                 str(future_collection_id) + '/entry/' + client_jwt)
+                 str(future_collection_id) + '/entry/' + voucher_encode)
 assert r.status_code == 410 and r.json() == 'Not within collection interval'
 
-bad_client_jwt = jwt.encode(
-    payload={
-        'jti': nonce
-    },
-    key=client_private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption()
-    ), algorithm='RS256'
-).decode('utf-8')
+bad_voucher = ','.join(['1', '2'])
+bad_voucher_sign = client_signing_key.sign(bad_voucher.encode())
+bad_voucher_encode = base64.urlsafe_b64encode(bad_voucher_sign).decode()
 r = requests.get(url=hostname + '/' + str(collection_id) +
-                 '/entry/' + bad_client_jwt)
-assert r.status_code == 400 and r.json() == 'Token does not contain issuance time'
+                 '/entry/' + bad_voucher_encode)
+assert r.status_code == 400 and r.json() == 'Voucher contains fewer than three values'
 
-bad_client_jwt = jwt.encode(
-    payload={
-        'iat': datetime.now().timestamp()
-    },
-    key=client_private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption()
-    ), algorithm='RS256'
-).decode('utf-8')
+bad_voucher = ','.join(['1', '2', '3', '4'])
+bad_voucher_sign = client_signing_key.sign(bad_voucher.encode())
+bad_voucher_encode = base64.urlsafe_b64encode(bad_voucher_sign).decode()
 r = requests.get(url=hostname + '/' + str(collection_id) +
-                 '/entry/' + bad_client_jwt)
-assert r.status_code == 400 and r.json() == 'Token does not contain nonce'
+                 '/entry/' + bad_voucher_encode)
+assert r.status_code == 400 and r.json() == 'Voucher contains more than three values'
+
+bad_client_serial = secrets.token_urlsafe(17)
+bad_voucher = ','.join([bad_client_serial, entry_serial,
+                        str(datetime.now().timestamp())])
+bad_voucher_sign = client_signing_key.sign(bad_voucher.encode())
+bad_voucher_encode = base64.urlsafe_b64encode(bad_voucher_sign).decode()
+r = requests.get(url=hostname + '/' + str(collection_id) +
+                 '/entry/' + bad_voucher_encode)
+assert r.status_code == 400 and r.json(
+) == 'Voucher client serial does not match registration'
+
+# TODO test 'Entry serial not for this collection'
+
+bad_voucher = ','.join([base64.urlsafe_b64encode(
+    client_serial).decode(), secrets.token_urlsafe(17), str(datetime.now().timestamp())])
+bad_voucher_sign = client_signing_key.sign(bad_voucher.encode())
+bad_voucher_encode = base64.urlsafe_b64encode(bad_voucher_sign).decode()
+r = requests.get(url=hostname + '/' + str(collection_id) +
+                 '/entry/' + bad_voucher_encode)
+assert r.status_code == 404 and r.json() == 'Entry does not exist'
+
+bad_voucher = ','.join([base64.urlsafe_b64encode(
+    client_serial).decode(), entry_serial, str((datetime.now() + timedelta(seconds=120)).timestamp())])
+bad_voucher_sign = client_signing_key.sign(bad_voucher.encode())
+bad_voucher_encode = base64.urlsafe_b64encode(bad_voucher_sign).decode()
+r = requests.get(url=hostname + '/' + str(collection_id) +
+                 '/entry/' + bad_voucher_encode)
+assert r.status_code == 400 and r.json(
+) == 'Voucher not issued and registered at same time'
 
 r = requests.get(url=hostname + '/' + str(collection_id) +
-                 '/entry/' + client_jwt)
+                 '/entry/' + voucher_encode)
 assert r.status_code == 200
 soup = BeautifulSoup(r.content, features="html.parser")
 csrf_token_form = soup.find(id='csrf_token')['value']
 session_token = soup.find(id='session_token')['value']
+entry_serial = soup.find(id='entry_serial').string
 csrf_token_cookie = r.cookies['session']
 
-r = requests.post(url=hostname + '/0/submit')
+r = requests.post(url=hostname + '/submit/0')
 assert r.status_code == 404
 
 r = requests.post(
-    url=hostname + '/' + str(collection_id) + '/submit',
+    url=hostname + '/submit/' + str(entry_serial),
     data={
         'csrf_token': csrf_token_form,
         'session_token': session_token,
@@ -208,75 +214,43 @@ r = requests.post(
 )
 assert r.status_code == 200
 
-modification_url = r.json()
-
-r = requests.get(url=modification_url)
-assert r.status_code == 200
-soup = BeautifulSoup(r.content, features="html.parser")
-assert float(soup.find(id='field_0')['value']) == 0.0
-assert float(soup.find(id='field_1')['value']) == 1.0
-assert float(soup.find(id='field_2')['value']) == 2.0
-
-csrf_token_form = soup.find(id='csrf_token')['value']
-session_token = soup.find(id='session_token')['value']
-csrf_token_cookie = r.cookies['session']
-r = requests.post(
-    url=hostname + '/' + str(collection_id) + '/submit',
-    data={
-        'csrf_token': csrf_token_form,
-        'session_token': session_token,
-        'field_0': 3,
-        'field_1': 4,
-        'field_2': 5
-    },
-    cookies={
-        'session': csrf_token_cookie
-    }
-)
-assert r.status_code == 200
-
-r = requests.get(url=modification_url)
-assert r.status_code == 200
-soup = BeautifulSoup(r.content, features="html.parser")
-assert float(soup.find(id='field_0')['value']) == 3.0
-assert float(soup.find(id='field_1')['value']) == 4.0
-assert float(soup.find(id='field_2')['value']) == 5.0
+r = requests.get(url=hostname + '/' + str(collection_id) +
+                 '/entry/' + voucher_encode)
+assert r.status_code == 400 and r.json() == 'Voucher already redeemed for a form'
 
 # add a second value
 
-nonce = secrets.token_urlsafe()
+client_serial = secrets.token_bytes(16)
+box = nacl.public.Box(
+    client_signing_key.to_curve25519_private_key(), collection_public_key)
+client_serial_encrypt = box.encrypt(client_serial)
 
 r = requests.post(
-    url=hostname + '/' + str(collection_id) + '/token/entry',
-    data=nonce
+    url=hostname + '/' + str(collection_id) + '/voucher',
+    data=client_serial_encrypt
 )
 assert r.status_code == 201
+entry_serial = r.json()
 
-client_jwt = jwt.encode(
-    payload={
-        'jti': nonce,
-        'iat': datetime.now().timestamp()
-    },
-    key=client_private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption()
-    ), algorithm='RS256'
-).decode('utf-8')
+voucher = ','.join(
+    [base64.urlsafe_b64encode(client_serial).decode(), entry_serial, str(datetime.now().timestamp())])
+voucher_sign = client_signing_key.sign(voucher.encode())
+voucher_encode = base64.urlsafe_b64encode(voucher_sign).decode()
 
 r = requests.get(url=hostname + '/' + str(collection_id) +
-                 '/entry/' + client_jwt)
+                 '/entry/' + voucher_encode)
 assert r.status_code == 200
 soup = BeautifulSoup(r.content, features="html.parser")
 csrf_token_form = soup.find(id='csrf_token')['value']
 session_token = soup.find(id='session_token')['value']
+entry_serial = soup.find(id='entry_serial').string
 csrf_token_cookie = r.cookies['session']
 
-r = requests.post(url=hostname + '/0/submit')
+r = requests.post(url=hostname + '/submit/0')
 assert r.status_code == 404
 
 r = requests.post(
-    url=hostname + '/' + str(collection_id) + '/submit',
+    url=hostname + '/submit/' + str(entry_serial),
     data={
         'csrf_token': csrf_token_form,
         'session_token': session_token,
@@ -290,72 +264,16 @@ r = requests.post(
 )
 assert r.status_code == 200
 
-r = requests.get(hostname + '/' + str(collection_id) + '/status/' + client_jwt)
-assert r.status_code == 400 and r.json(
-) == 'Token contains nonce for non-entry action'
-
-client_jwt = jwt.encode(
-    payload={
-        'iat': datetime.now().timestamp()
-    },
-    key=client_private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption()
-    ), algorithm='RS256'
-).decode('utf-8')
-
-r = requests.get(hostname + '/' + str(collection_id) + '/status/' + client_jwt)
-assert r.status_code == 403 and r.json() == 'A corresponding session was not found'
-
-r = requests.post(hostname + '/' + str(collection_id) + '/token/status')
-assert r.status_code == 201
-
-r = requests.get(hostname + '/' + str(collection_id) + '/status/' + client_jwt)
+r = requests.get(hostname + '/' + str(collection_id) + '/status')
 assert r.status_code == 204
 
-# cross-use a token
-r = requests.post(hostname + '/' + str(collection_id) +
-                  '/enqueue/' + client_jwt)
-assert r.status_code == 403 and r.json() == 'A corresponding session was not found'
-
-r = requests.post(hostname + '/' + str(collection_id) + '/token/enqueue')
-assert r.status_code == 201
-
-client_jwt = jwt.encode(
-    payload={
-        'iat': datetime.now().timestamp()
-    },
-    key=client_private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption()
-    ), algorithm='RS256'
-).decode('utf-8')
-
-r = requests.post(hostname + '/' + str(collection_id) +
-                  '/enqueue/' + client_jwt)
+r = requests.post(hostname + '/' + str(collection_id) + '/enqueue')
 assert r.status_code == 202
 
 content = None
 
 while content == None:
-    r = requests.post(hostname + '/' + str(collection_id) + '/token/status')
-    assert r.status_code == 201
-
-    client_jwt = jwt.encode(
-        payload={
-            'iat': datetime.now().timestamp()
-        },
-        key=client_private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption()
-        ), algorithm='RS256'
-    ).decode('utf-8')
-
-    r = requests.get(hostname + '/' + str(collection_id) +
-                     '/status/' + client_jwt)
+    r = requests.get(hostname + '/' + str(collection_id) + '/status')
     if r.status_code == 200:
         content = r.content
 

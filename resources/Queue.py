@@ -3,8 +3,9 @@ from flask_restful import Resource
 
 from Model import db, Collection, Entry, Status
 
-from resources.Token import redis_conn, consume_collection_token
+from resources.Token import redis_conn
 
+import nacl.public
 from rq import Queue
 
 import diffprivlib.models
@@ -25,14 +26,21 @@ def process(collection_id):
 
     attribute_x_indices = [index for index in range(
         len(collection.attributes)) if index != collection.attribute_y_index]
+    collection_private_key = nacl.public.PrivateKey(
+        collection.entry_private_key)
+    sealed_box = nacl.public.SealedBox(collection_private_key)
+    entries = Entry.query.filter_by(collection_id=collection.id).all()
+    entries_decrypt = [sealed_box.decrypt(entry.values) for entry in entries]
+    entries_decode = [bytes.decode(entry_decrypt).split(
+        ',') for entry_decrypt in entries_decrypt]
+    entries_float = [list(map(
+        float, entry_decode)) for entry_decode in entries_decode]
 
-    X, y = zip(*[
-        (
-            [entry.values[index] for index in attribute_x_indices],
-            entry.values[collection.attribute_y_index]
-        )
-        for entry in Entry.query.filter_by(collection_id=collection.id).all()
-    ])
+    X, y = zip(*[(
+        [entry_float[index] for index in attribute_x_indices],
+        entry_float[collection.attribute_y_index])
+        for entry_float in entries_float]
+    )
 
     model = getattr(diffprivlib.models, collection.fit_model)(
         **collection.fit_arguments)
@@ -48,12 +56,10 @@ def process(collection_id):
 
 
 class EnqueueResource(Resource):
-    def post(self, collection_id, token):
-        consume_collection_token_result = consume_collection_token(
-            collection_id, token, 'enqueue')
-        if consume_collection_token_result[1] != 200:
-            return consume_collection_token_result
-        collection = consume_collection_token_result[0]
+    def post(self, collection_id):
+        collection = Collection.query.get(collection_id)
+        if not collection:
+            return 'Collection ID not found', 404
         if collection.status is not None:
             return 'Already enqueued', 400
         collection.status = Status.enqueued

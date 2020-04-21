@@ -4,6 +4,7 @@ from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy
 
 from datetime import datetime
+import secrets
 
 import secrets
 from enum import Enum
@@ -30,12 +31,18 @@ class Collection(db.Model):
     response_start_time = db.Column(db.TIMESTAMP, nullable=False)
     response_end_time = db.Column(db.TIMESTAMP, nullable=False)
 
+    # TODO rename client_verify_key
     public_key = db.Column(db.LargeBinary(), nullable=False)
+
+    # TODO rename collection_{private, public}_key
+    entry_private_key = db.Column(db.LargeBinary(), nullable=False)
+    entry_public_key = db.Column(db.LargeBinary(), nullable=False)
 
     result = db.Column(db.PickleType)
     status = db.Column(db.Enum(Status))
 
-    def __init__(self, attributes, attribute_y_index, fit_model, fit_arguments, description, response_start_time, response_end_time, public_key):
+
+    def __init__(self, attributes, attribute_y_index, fit_model, fit_arguments, description, response_start_time, response_end_time, public_key, entry_private_key, entry_public_key):
         self.id = secrets.token_urlsafe(16)
         self.attributes = attributes
         self.attribute_y_index = attribute_y_index
@@ -45,19 +52,21 @@ class Collection(db.Model):
         self.response_start_time = response_start_time
         self.response_end_time = response_end_time
         self.public_key = public_key
+        self.entry_private_key = entry_private_key
+        self.entry_public_key = entry_public_key
 
 
 class Entry(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    entry_serial = db.Column(db.String(), primary_key=True)
     collection_id = db.Column(db.String, db.ForeignKey('collection.id'))
-    modification_key = db.Column(db.LargeBinary(), nullable=False)
-    token = db.Column(db.String(), nullable=False)
-    values = db.Column(db.PickleType)  # list of floats
+    client_serial = db.Column(db.String())
+    issued_at = db.Column(db.DateTime())
+    values = db.Column(db.LargeBinary())
 
     collection = db.relationship('Collection')
 
-    def __init__(self, collection_id, modification_key, token, values):
+    def __init__(self, collection_id, client_serial):
+        self.entry_serial = secrets.token_urlsafe(16)
+        self.issued_at = datetime.now()
         self.collection_id = collection_id
-        self.modification_key = modification_key
-        self.token = token
-        self.values = values
+        self.client_serial = client_serial
