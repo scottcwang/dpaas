@@ -3,7 +3,7 @@ from flask_restful import Resource
 
 from Model import db, Collection, Entry, Status
 
-from resources.Token import redis_conn
+from resources.Root import redis_conn
 
 import nacl.public
 from rq import Queue

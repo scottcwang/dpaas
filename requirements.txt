@@ -10,7 +10,6 @@ marshmallow
 marshmallow-sqlalchemy
 psycopg2
 SQLAlchemy
-cryptography
 flask_wtf
 rq
 diffprivlib
