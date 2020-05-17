@@ -11,9 +11,9 @@ api_bp = Blueprint('api', __name__)
 api = Api(api_bp)
 
 api.add_resource(RootResource, '/')
-api.add_resource(VoucherResource, '/<int:collection_id>/voucher')
-api.add_resource(EntryResource, '/<int:collection_id>/entry/<string:voucher>',
+api.add_resource(VoucherResource, '/<string:collection_id>/voucher')
+api.add_resource(EntryResource, '/<string:collection_id>/entry/<string:voucher>',
                  '/submit/<string:entry_serial>')
 api.add_resource(
-    EnqueueResource, '/<int:collection_id>/enqueue')
-api.add_resource(StatusResource, '/<int:collection_id>/status')
+    EnqueueResource, '/<string:collection_id>/enqueue')
+api.add_resource(StatusResource, '/<string:collection_id>/status')

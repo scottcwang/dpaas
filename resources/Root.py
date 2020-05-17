@@ -1,5 +1,6 @@
 from flask import request
 from flask_restful import Resource
+from flask_redis import FlaskRedis
 from marshmallow import Schema, fields, ValidationError
 
 from Model import *
@@ -8,10 +9,7 @@ import nacl.signing
 import nacl.encoding
 import base64
 
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.serialization import load_pem_public_key
-from cryptography.hazmat.primitives import serialization
+redis_conn = FlaskRedis()
 
 
 class RootInputSchema(Schema):

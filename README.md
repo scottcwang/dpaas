@@ -10,10 +10,11 @@ First, update [config.py](https://github.com/scottcwang/dpaas/blob/master/config
 pip install -r requirements.txt
 rm -rf ./migrations
 DPAAS_CONFIG_PATH='config.py'
+FLASK_APP='run.py'
 python migrate.py db init
 python migrate.py db migrate
 python migrate.py db upgrade
-python run.py
+flask run
 ```
 
 The test cases are in [test.py](https://github.com/scottcwang/dpaas/blob/master/test.py) and can be run in a separate session.

@@ -5,7 +5,6 @@ from flask_sqlalchemy import SQLAlchemy
 
 from datetime import datetime
 import secrets
-
 from enum import Enum
 
 ma = Marshmallow()
@@ -19,7 +18,7 @@ class Status(Enum):
 
 
 class Collection(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String, primary_key=True)
 
     attributes = db.Column(db.PickleType)  # list of strings
     # index of y-attribute in attributes (if any)
@@ -40,7 +39,9 @@ class Collection(db.Model):
     result = db.Column(db.PickleType)
     status = db.Column(db.Enum(Status))
 
+
     def __init__(self, attributes, attribute_y_index, fit_model, fit_arguments, description, response_start_time, response_end_time, public_key, entry_private_key, entry_public_key):
+        self.id = secrets.token_urlsafe(16)
         self.attributes = attributes
         self.attribute_y_index = attribute_y_index
         self.fit_model = fit_model
@@ -55,7 +56,7 @@ class Collection(db.Model):
 
 class Entry(db.Model):
     entry_serial = db.Column(db.String(), primary_key=True)
-    collection_id = db.Column(db.Integer, db.ForeignKey('collection.id'))
+    collection_id = db.Column(db.String, db.ForeignKey('collection.id'))
     client_serial = db.Column(db.String())
     issued_at = db.Column(db.DateTime())
     values = db.Column(db.LargeBinary())
