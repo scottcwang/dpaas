@@ -13,7 +13,7 @@ hostname = 'http://127.0.0.1:5000'
 
 client_signing_key = nacl.signing.SigningKey.generate()
 # client_public_key_encoded = str(client_signing_key.public_key.encode(encoder=nacl.encoding.URLSafeBase64Encoder)) # TODO figure out why nacl.encoding.*Encoder doesn't work
-client_public_key_encoded = base64.urlsafe_b64encode(
+client_verify_key_encoded = base64.urlsafe_b64encode(
     bytes(client_signing_key.verify_key)).decode()
 
 r = requests.post(url=hostname + '/', data='a')
@@ -32,7 +32,7 @@ r = requests.post(
             'epsilon': 1
         },
         'description': '# Title\nParagraph',
-        'public_key': 'a',
+        'client_verify_key': 'a',
         'response_start_time': datetime.now().isoformat(),
         'response_end_time': (datetime.now() + timedelta(minutes=60)).isoformat()
     })
@@ -48,7 +48,7 @@ r = requests.post(
             'epsilon': 1
         },
         'description': '# Title\nParagraph',
-        'public_key': client_public_key_encoded,
+        'client_verify_key': client_verify_key_encoded,
         'response_start_time': datetime.now().isoformat(),
         'response_end_time': (datetime.now() + timedelta(seconds=60)).isoformat()
     })
@@ -64,7 +64,7 @@ r = requests.post(
             'epsilon': 1
         },
         'description': '# Title\nParagraph',
-        'public_key': client_public_key_encoded,
+        'client_verify_key': client_verify_key_encoded,
         'response_start_time': datetime.now().isoformat(),
         'response_end_time': (datetime.now() + timedelta(minutes=60)).isoformat()
     })
@@ -80,7 +80,7 @@ r = requests.post(
             'epsilon': 1
         },
         'description': '# Title\nParagraph',
-        'public_key': client_public_key_encoded,
+        'client_verify_key': client_verify_key_encoded,
         'response_start_time': datetime.now().isoformat(),
         'response_end_time': (datetime.now() + timedelta(minutes=60)).isoformat()
     })
@@ -97,7 +97,7 @@ r = requests.post(
             'epsilon': 1
         },
         'description': '# Title\nParagraph',
-        'public_key': client_public_key_encoded,
+        'client_verify_key': client_verify_key_encoded,
         'response_start_time': (datetime.now() + timedelta(minutes=60)).isoformat(),
         'response_end_time': (datetime.now() + timedelta(minutes=120)).isoformat()
     })

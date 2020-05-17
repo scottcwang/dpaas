@@ -43,7 +43,7 @@ class EntryResource(Resource):
         if datetime.now() < collection.response_start_time or datetime.now() > collection.response_end_time:
             return 'Not within collection interval', 410
         try:
-            verify_key = nacl.signing.VerifyKey(collection.public_key)
+            verify_key = nacl.signing.VerifyKey(collection.client_verify_key)
             voucher_contents = verify_key.verify(
                 base64.urlsafe_b64decode(voucher.encode()))
         except Exception as e:
@@ -118,9 +118,10 @@ class EntryResource(Resource):
         values = [getattr(form, 'field_' + str(attribute_index)
                           ).data for attribute_index in range(len(collection.attributes))]
         values_json_bytes = ','.join(map(str, values)).encode()
-        entry_public_key = nacl.public.PublicKey(collection.entry_public_key)
+        collection_public_key = nacl.public.PublicKey(
+            collection.collection_public_key)
         values_json_box = nacl.public.SealedBox(
-            entry_public_key)
+            collection_public_key)
         values_json_encrypt = values_json_box.encrypt(values_json_bytes)
         entry.values = values_json_encrypt
         db.session.add(entry)
