@@ -1,11 +1,13 @@
 from flask import request, render_template, make_response
 from flask_restful import Resource
+from marshmallow import Schema, fields, ValidationError
 
 from Model import db, Collection, Entry, Status
 
 from resources.Root import redis_conn
 
 import nacl.public
+import nacl.secret
 from rq import Queue
 
 import diffprivlib.models
@@ -17,7 +19,7 @@ from config import REDIS_QUEUE_IS_ASYNC
 q = Queue(connection=redis_conn, is_async=REDIS_QUEUE_IS_ASYNC)
 
 
-def process(collection_id):
+def process(collection_id, collection_private_key_decrypted):
     collection = Collection.query.get(collection_id)
     if not collection:
         return
@@ -26,9 +28,8 @@ def process(collection_id):
 
     attribute_x_indices = [index for index in range(
         len(collection.attributes)) if index != collection.attribute_y_index]
-    collection_private_key = nacl.public.PrivateKey(
-        collection.collection_private_key)
-    sealed_box = nacl.public.SealedBox(collection_private_key)
+    sealed_box = nacl.public.SealedBox(
+        nacl.public.PrivateKey(collection_private_key_decrypted))
     entries = Entry.query.filter_by(collection_id=collection.id).all()
     entries_decrypt = [sealed_box.decrypt(entry.values) for entry in entries]
     entries_decode = [bytes.decode(entry_decrypt).split(
@@ -55,15 +56,36 @@ def process(collection_id):
     db.session.commit()
 
 
+class QueueInputSchema(Schema):
+    collection_private_key_secret = fields.Str(required=True)
+
+
+queue_input_schema = QueueInputSchema()
+
+
 class EnqueueResource(Resource):
     def post(self, collection_id):
+        json_data = request.get_json()
+        if not json_data:
+            return 'Request is not JSON', 400
+        try:
+            data = queue_input_schema.load(json_data)
+        except ValidationError as error:
+            return 'JSON payload does not conform to schema', 400
+
         collection = Collection.query.get(collection_id)
         if not collection:
             return 'Collection ID not found', 404
         if collection.status is not None:
             return 'Already enqueued', 400
+        try:
+            collection_private_key_decrypted = nacl.secret.SecretBox(
+                data['collection_private_key_secret'], encoder=nacl.encoding.URLSafeBase64Encoder).decrypt(collection.collection_private_key)
+        except:
+            return 'Incorrect collection private key secret', 400
+
         collection.status = Status.enqueued
         db.session.add(collection)
         db.session.commit()
-        q.enqueue(process, collection_id)
+        q.enqueue(process, collection_id, collection_private_key_decrypted)
         return None, 202

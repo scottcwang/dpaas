@@ -85,7 +85,7 @@ r = requests.post(
         'response_end_time': (datetime.now() + timedelta(minutes=60)).isoformat()
     })
 assert r.status_code == 201
-collection_id, collection_public_key_b64 = r.json().split(',')
+collection_id, collection_public_key_b64, collection_private_key_secret = r.json().split(',')
 
 r = requests.post(
     url=hostname + '/',
@@ -102,18 +102,23 @@ r = requests.post(
         'response_end_time': (datetime.now() + timedelta(minutes=120)).isoformat()
     })
 assert r.status_code == 201
-future_collection_id, _ = r.json().split(',')
+future_collection_id, _, _ = r.json().split(',')
 
-r = requests.post(url=hostname + '/' +
-                  str(future_collection_id) + '/voucher')
+r = requests.post(
+    url=hostname + '/' + str(future_collection_id) + '/voucher',
+    json={
+        'collection_private_key_secret': collection_private_key_secret,
+        'client_serial_encrypt': 'a'
+    })
 assert r.status_code == 410 and r.json() == 'Not within collection interval'
 
-r = requests.post(url=hostname + '/0/voucher')
+r = requests.post(
+    url=hostname + '/0/voucher',
+    json={
+        'collection_private_key_secret': collection_private_key_secret,
+        'client_serial_encrypt': 'a'
+    })
 assert r.status_code == 404
-
-r = requests.post(url=hostname + '/' + str(collection_id) + '/voucher')
-assert r.status_code == 400 and r.json(
-) == 'No client serial number provided for voucher registration'
 
 collection_public_key = nacl.public.PublicKey(
     base64.urlsafe_b64decode(collection_public_key_b64))
@@ -124,10 +129,14 @@ client_serial_encrypt = box.encrypt(client_serial)
 
 r = requests.post(
     url=hostname + '/' + str(collection_id) + '/voucher',
-    data=client_serial_encrypt
-)
+    json={
+        'collection_private_key_secret': collection_private_key_secret,
+        'client_serial_encrypt': base64.urlsafe_b64encode(client_serial_encrypt).decode()
+    })
 assert r.status_code == 201
 entry_serial = r.json()
+
+# TODO Test that attempt to reuse client_serial_encrypt fails
 
 voucher = ','.join(
     [base64.urlsafe_b64encode(client_serial).decode(), entry_serial, str(datetime.now().timestamp())])
@@ -222,10 +231,13 @@ box = nacl.public.Box(
     client_signing_key.to_curve25519_private_key(), collection_public_key)
 client_serial_encrypt = box.encrypt(client_serial)
 
+
 r = requests.post(
     url=hostname + '/' + str(collection_id) + '/voucher',
-    data=client_serial_encrypt
-)
+    json={
+        'collection_private_key_secret': collection_private_key_secret,
+        'client_serial_encrypt': base64.urlsafe_b64encode(client_serial_encrypt).decode()
+    })
 assert r.status_code == 201
 entry_serial = r.json()
 
@@ -264,7 +276,18 @@ assert r.status_code == 200
 r = requests.get(hostname + '/' + str(collection_id) + '/status')
 assert r.status_code == 204
 
-r = requests.post(hostname + '/' + str(collection_id) + '/enqueue')
+r = requests.post(
+    url=hostname + '/' + str(collection_id) + '/enqueue',
+    json={
+        'collection_private_key_secret': 'a'
+    })
+assert r.status_code == 400 and r.json() == 'Incorrect collection private key secret'
+
+r = requests.post(
+    url=hostname + '/' + str(collection_id) + '/enqueue',
+    json={
+        'collection_private_key_secret': collection_private_key_secret
+    })
 assert r.status_code == 202
 
 content = None
