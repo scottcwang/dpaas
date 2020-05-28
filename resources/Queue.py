@@ -30,7 +30,8 @@ def process(collection_id, collection_private_key_decrypted):
         len(collection.attributes)) if index != collection.attribute_y_index]
     sealed_box = nacl.public.SealedBox(
         nacl.public.PrivateKey(collection_private_key_decrypted))
-    entries = Entry.query.filter_by(collection_id=collection.id).all()
+    entries = Entry.query.filter(
+        Entry.collection_id == collection.id, Entry.values is not None).all()
     entries_decrypt = [sealed_box.decrypt(entry.values) for entry in entries]
     entries_decode = [bytes.decode(entry_decrypt).split(
         ',') for entry_decrypt in entries_decrypt]

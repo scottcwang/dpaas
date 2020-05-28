@@ -56,6 +56,7 @@ class Entry(db.Model):
     collection_id = db.Column(db.String, db.ForeignKey('collection.id'))
     client_serial = db.Column(db.String())
     issued_at = db.Column(db.DateTime())
+    session_token = db.Column(db.String())
     values = db.Column(db.LargeBinary())
 
     collection = db.relationship('Collection')

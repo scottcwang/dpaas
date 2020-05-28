@@ -273,6 +273,8 @@ r = requests.post(
 )
 assert r.status_code == 200
 
+# TODO Test unredeemed voucher is not used in model
+
 r = requests.get(hostname + '/' + str(collection_id) + '/status')
 assert r.status_code == 204
 
