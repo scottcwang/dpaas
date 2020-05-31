@@ -29,18 +29,15 @@ class Collection(db.Model):
     response_start_time = db.Column(db.TIMESTAMP, nullable=False)
     response_end_time = db.Column(db.TIMESTAMP, nullable=False)
 
-    # TODO rename client_verify_key
-    public_key = db.Column(db.LargeBinary(), nullable=False)
+    client_verify_key = db.Column(db.LargeBinary(), nullable=False)
 
-    # TODO rename collection_{private, public}_key
-    entry_private_key = db.Column(db.LargeBinary(), nullable=False)
-    entry_public_key = db.Column(db.LargeBinary(), nullable=False)
+    collection_private_key = db.Column(db.LargeBinary(), nullable=False)
+    collection_public_key = db.Column(db.LargeBinary(), nullable=False)
 
     result = db.Column(db.PickleType)
     status = db.Column(db.Enum(Status))
 
-
-    def __init__(self, attributes, attribute_y_index, fit_model, fit_arguments, description, response_start_time, response_end_time, public_key, entry_private_key, entry_public_key):
+    def __init__(self, attributes, attribute_y_index, fit_model, fit_arguments, description, response_start_time, response_end_time, client_verify_key, collection_private_key, collection_public_key):
         self.id = secrets.token_urlsafe(16)
         self.attributes = attributes
         self.attribute_y_index = attribute_y_index
@@ -49,9 +46,9 @@ class Collection(db.Model):
         self.description = description
         self.response_start_time = response_start_time
         self.response_end_time = response_end_time
-        self.public_key = public_key
-        self.entry_private_key = entry_private_key
-        self.entry_public_key = entry_public_key
+        self.client_verify_key = client_verify_key
+        self.collection_private_key = collection_private_key
+        self.collection_public_key = collection_public_key
 
 
 class Entry(db.Model):
@@ -59,6 +56,7 @@ class Entry(db.Model):
     collection_id = db.Column(db.String, db.ForeignKey('collection.id'))
     client_serial = db.Column(db.String())
     issued_at = db.Column(db.DateTime())
+    session_token = db.Column(db.String())
     values = db.Column(db.LargeBinary())
 
     collection = db.relationship('Collection')

@@ -7,6 +7,9 @@ from Model import *
 
 import nacl.signing
 import nacl.encoding
+import nacl.public
+import nacl.secret
+
 import base64
 
 redis_conn = FlaskRedis()
@@ -19,7 +22,7 @@ class RootInputSchema(Schema):
     fit_arguments = fields.Dict(
         keys=fields.Str(), values=fields.Raw(), required=True)
     description = fields.Str(required=True)
-    public_key = fields.Str(required=True)
+    client_verify_key = fields.Str(required=True)
     response_start_time = fields.DateTime(required=True)
     response_end_time = fields.DateTime(required=True)
 
@@ -39,8 +42,8 @@ class RootResource(Resource):
 
         # TODO validate public key online
         try:
-            public_key = nacl.signing.VerifyKey(
-                data['public_key'], nacl.encoding.URLSafeBase64Encoder)
+            client_verify_key = nacl.signing.VerifyKey(
+                data['client_verify_key'], nacl.encoding.URLSafeBase64Encoder)
         except Exception as e:
             return 'Public key could not be parsed', 400
         # TODO Challenge ownership of public key
@@ -55,8 +58,12 @@ class RootResource(Resource):
         if data['attribute_y_index'] >= len(data['attributes']) or data['attribute_y_index'] < 0:
             return 'attribute_y_index invalid', 400
 
-        entry_private_key = nacl.public.PrivateKey.generate()
-        entry_public_key = entry_private_key.public_key
+        collection_private_key_secret = secrets.token_bytes(
+            nacl.secret.SecretBox.KEY_SIZE)
+        collection_private_key_decrypted = nacl.public.PrivateKey.generate()
+        collection_private_key = nacl.secret.SecretBox(
+            collection_private_key_secret).encrypt(bytes(collection_private_key_decrypted))
+        collection_public_key = collection_private_key_decrypted.public_key
 
         collection = Collection(
             attributes=data['attributes'],
@@ -66,15 +73,19 @@ class RootResource(Resource):
             description=data['description'],
             response_start_time=data['response_start_time'],
             response_end_time=data['response_end_time'],
-            public_key=public_key.encode(),
-            entry_private_key=entry_private_key.encode(),
-            entry_public_key=entry_public_key.encode()
+            client_verify_key=client_verify_key.encode(),
+            collection_private_key=bytes(collection_private_key),
+            collection_public_key=collection_public_key.encode()
         )
 
         db.session.add(collection)
         db.session.commit()
 
-        return_value = ','.join([str(collection.id), base64.urlsafe_b64encode(
-            entry_public_key.encode()).decode()])
+        # TODO place collection_private_key_secret in Box
+        return_value = ','.join([
+            str(collection.id),
+            base64.urlsafe_b64encode(collection_public_key.encode()).decode(),
+            base64.urlsafe_b64encode(collection_private_key_secret).decode()
+        ])
 
         return return_value, 201

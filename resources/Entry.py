@@ -16,8 +16,6 @@ import nacl.utils
 import nacl.public
 import nacl.signing
 
-from resources.Root import redis_conn
-
 
 def create_form(attributes, session_token):
     class SubEntryForm(FlaskForm):
@@ -42,8 +40,9 @@ class EntryResource(Resource):
             return 'Collection ID not found', 404
         if datetime.now() < collection.response_start_time or datetime.now() > collection.response_end_time:
             return 'Not within collection interval', 410
+        # TODO block if enqueued or later
         try:
-            verify_key = nacl.signing.VerifyKey(collection.public_key)
+            verify_key = nacl.signing.VerifyKey(collection.client_verify_key)
             voucher_contents = verify_key.verify(
                 base64.urlsafe_b64decode(voucher.encode()))
         except Exception as e:
@@ -80,22 +79,16 @@ class EntryResource(Resource):
             return 'Voucher not issued and registered at same time', 400
 
         entry.client_serial = None
-        db.session.add(entry)
-        db.session.commit()
 
         attributes = [(attribute, '')
                       for attribute in collection.attributes]
-        session_token = secrets.token_urlsafe(16)
-        # produce a submit session
-        # TODO migrate to Entry table
-        try:
-            redis_conn.setex('submit:' + str(collection_id) +
-                             ':' + str(session_token), 600, '')
-        except:
-            return 'Redis error', 500
+        entry.session_token = secrets.token_urlsafe(16)
+        db.session.add(entry)
+        db.session.commit()
+
         headers = {'Content-Type': 'text/html'}
-        form_class = create_form(attributes, session_token)
-        return make_response(render_template('entry.html', form=form_class(), attributes=attributes, collection=collection, entry_serial=entry_serial, session_token=session_token), 200, headers)
+        form_class = create_form(attributes, entry.session_token)
+        return make_response(render_template('entry.html', form=form_class(), attributes=attributes, collection=collection, entry_serial=entry_serial), 200, headers)
 
     def post(self, entry_serial):
         # recreate form schema for validation
@@ -108,19 +101,20 @@ class EntryResource(Resource):
         if not form.validate():
             return 'Form data does not conform to schema, or CSRF token does not match', 400
 
-        # consume a submit session
-        key = 'submit:' + str(collection.id) + ':' + form.session_token.data
-        session_value = redis_conn.get(key).decode('utf-8')
-        if session_value is None:  # no session exists
-            return 'Session does not exist', 403
-        redis_conn.delete(key)
+        # TODO block if not within collection interval
+        # TODO block if enqueued or later
+
+        if entry.session_token != form.session_token.data:
+            return 'Incorrect session token', 403
+        entry.session_token = None
 
         values = [getattr(form, 'field_' + str(attribute_index)
                           ).data for attribute_index in range(len(collection.attributes))]
         values_json_bytes = ','.join(map(str, values)).encode()
-        entry_public_key = nacl.public.PublicKey(collection.entry_public_key)
+        collection_public_key = nacl.public.PublicKey(
+            collection.collection_public_key)
         values_json_box = nacl.public.SealedBox(
-            entry_public_key)
+            collection_public_key)
         values_json_encrypt = values_json_box.encrypt(values_json_bytes)
         entry.values = values_json_encrypt
         db.session.add(entry)

@@ -9,7 +9,7 @@ def create_app():
     from app import api_bp
     app.register_blueprint(api_bp)
 
-    from resources.Entry import redis_conn
+    from resources.Root import redis_conn
     redis_conn.init_app(app)
 
     from Model import db
