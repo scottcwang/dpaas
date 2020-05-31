@@ -17,3 +17,4 @@ pyjwt
 requests
 beautifulsoup4
 pynacl
+python-dotenv

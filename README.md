@@ -4,13 +4,14 @@ This is a Python web server that allows a client to configure a data collection 
 
 The API definition, as OpenAPI 3.0, is in [openapi.yaml](https://github.com/scottcwang/dpaas/blob/master/openapi.yaml).
 
-First, update [config.py](https://github.com/scottcwang/dpaas/blob/master/config.py) with the URLs to your PostgreSQL and Redis instances. Then, run:
+First, create an `.env` file in this directory with the following variables:
+- `SQLALCHEMY_DATABASE_URI`
+- `REDIS_URL`
+Then, run:
 
 ```
 pip install -r requirements.txt
 rm -rf ./migrations
-DPAAS_CONFIG_PATH='config.py'
-FLASK_APP='run.py'
 python migrate.py db init
 python migrate.py db migrate
 python migrate.py db upgrade
