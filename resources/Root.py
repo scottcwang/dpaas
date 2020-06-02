@@ -23,8 +23,8 @@ class RootInputSchema(Schema):
         keys=fields.Str(), values=fields.Raw(), required=True)
     description = fields.Str(required=True)
     client_verify_key = fields.Str(required=True)
-    response_start_time = fields.DateTime(required=True)
-    response_end_time = fields.DateTime(required=True)
+    response_start_time = fields.Float(required=True)
+    response_end_time = fields.Float(required=True)
 
 
 root_input_schema = RootInputSchema()
@@ -71,8 +71,10 @@ class RootResource(Resource):
             fit_model=data['fit_model'],
             fit_arguments=data['fit_arguments'],
             description=data['description'],
-            response_start_time=data['response_start_time'],
-            response_end_time=data['response_end_time'],
+            response_start_time=datetime.datetime.fromtimestamp(
+                data['response_start_time'], datetime.timezone.utc),
+            response_end_time=datetime.datetime.fromtimestamp(
+                data['response_end_time'], datetime.timezone.utc),
             client_verify_key=client_verify_key.encode(),
             collection_private_key=bytes(collection_private_key),
             collection_public_key=collection_public_key.encode()

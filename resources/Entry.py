@@ -7,7 +7,7 @@ from flask_wtf import FlaskForm
 from wtforms import FloatField, FieldList, HiddenField
 from wtforms.validators import InputRequired
 
-from datetime import datetime, timedelta
+import datetime
 import secrets
 import base64
 
@@ -38,7 +38,7 @@ class EntryResource(Resource):
         collection = Collection.query.get(collection_id)
         if not collection:
             return 'Collection ID not found', 404
-        if datetime.now() < collection.response_start_time or datetime.now() > collection.response_end_time:
+        if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
             return 'Not within collection interval', 410
         # TODO block if enqueued or later
         try:
@@ -60,7 +60,8 @@ class EntryResource(Resource):
         client_serial = client_serial_str
         entry_serial = entry_serial_str
         try:
-            issued_at = datetime.fromtimestamp(float(issued_at_str))
+            issued_at = datetime.datetime.fromtimestamp(
+                float(issued_at_str), datetime.timezone.utc)
         except:
             return 'Timestamp invalid'
 
@@ -75,7 +76,7 @@ class EntryResource(Resource):
         if entry.client_serial != client_serial:
             return 'Voucher client serial does not match registration', 400
 
-        if abs(entry.issued_at - issued_at) > timedelta(seconds=60):
+        if abs(entry.issued_at - issued_at) > datetime.timedelta(seconds=60):
             return 'Voucher not issued and registered at same time', 400
 
         entry.client_serial = None

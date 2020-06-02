@@ -3,7 +3,7 @@ from flask_restful import Resource
 from Model import db, Collection, Entry
 from marshmallow import Schema, fields, ValidationError
 
-from datetime import datetime, timedelta
+import datetime
 import secrets
 import base64
 
@@ -32,7 +32,7 @@ class VoucherResource(Resource):
         collection = Collection.query.get(collection_id)
         if not collection:
             return 'Collection ID not found', 404
-        if datetime.now() < collection.response_start_time or datetime.now() > collection.response_end_time:
+        if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
             return 'Not within collection interval', 410
         if collection.status is not None:
             return 'Already enqueued', 400
