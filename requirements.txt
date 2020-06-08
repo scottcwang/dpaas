@@ -18,3 +18,5 @@ requests
 beautifulsoup4
 pynacl
 python-dotenv
+pytest
+docker
