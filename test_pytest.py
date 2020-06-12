@@ -3,9 +3,9 @@ import base64
 import tempfile
 import shutil
 import time
+from collections import namedtuple
 
 import nacl.signing
-
 import pytest
 import docker
 from dotenv import load_dotenv
@@ -15,7 +15,7 @@ from run import create_app
 from Model import db
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def client():
     load_dotenv(dotenv_path='./.flaskenv')
     app = create_app()
@@ -80,6 +80,41 @@ def client():
     redis_container.stop()
     if redis_pulled:
         docker_client.images.remove("redis")
+
+
+@pytest.fixture(scope='session')
+def collection(client):
+    client_signing_key = nacl.signing.SigningKey.generate()
+    client_verify_key_encoded = base64.urlsafe_b64encode(
+        bytes(client_signing_key.verify_key)).decode()
+
+    r = client.post('/', json={
+        'attributes': ['attr0', 'attr1', 'attr2'],
+        'fit_model': 'PCA',
+        'attribute_y_index': 2,
+        'fit_arguments': {
+            'epsilon': 1
+        },
+        'description': '# Title\nParagraph',
+        'client_verify_key': client_verify_key_encoded,
+        'response_start_time': datetime.datetime.now(datetime.timezone.utc).timestamp(),
+        'response_end_time': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=60)).timestamp()
+    })
+    collection_id, collection_public_key_b64, collection_private_key_secret = r.json.split(
+        ',')
+
+    Collection = namedtuple('Collection',
+                            [
+                                'id',
+                                'collection_public_key_b64',
+                                'collection_private_key_secret',
+                                'client_signing_key'
+                            ])
+    return Collection(
+        collection_id,
+        collection_public_key_b64, collection_private_key_secret,
+        client_signing_key
+    )
 
 
 def test_root(client):
@@ -148,3 +183,11 @@ def test_root(client):
         'response_end_time': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=60)).timestamp()
     })
     assert r.status_code == 201
+
+
+def test_voucher(client, collection):
+    r = client.post('/' + collection.id + '/voucher', data='a')
+    assert r.status_code == 400 and r.json == 'Request is not JSON'
+
+    r = client.post('/' + collection.id + '/voucher', json={'a': 'b'})
+    assert r.status_code == 400 and r.json == 'JSON payload does not conform to schema'
