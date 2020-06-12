@@ -82,13 +82,24 @@ def client():
         docker_client.images.remove("redis")
 
 
-@pytest.fixture(scope='session')
-def collection(client):
-    client_signing_key = nacl.signing.SigningKey.generate()
-    client_verify_key_encoded = base64.urlsafe_b64encode(
-        bytes(client_signing_key.verify_key)).decode()
+SigningKey = namedtuple('SigningKey', [
+    'signing_key',
+    'verify_key_b64'
+])
 
-    r = client.post('/', json={
+
+@pytest.fixture(scope='session')
+def signing_key():
+    client_signing_key = nacl.signing.SigningKey.generate()
+    return SigningKey(
+        client_signing_key,
+        base64.urlsafe_b64encode(
+            bytes(client_signing_key.verify_key)).decode()
+    )
+
+
+def root_req(client_verify_key_encoded, future=False):
+    return {
         'attributes': ['attr0', 'attr1', 'attr2'],
         'fit_model': 'PCA',
         'attribute_y_index': 2,
@@ -97,24 +108,37 @@ def collection(client):
         },
         'description': '# Title\nParagraph',
         'client_verify_key': client_verify_key_encoded,
-        'response_start_time': datetime.datetime.now(datetime.timezone.utc).timestamp(),
-        'response_end_time': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=60)).timestamp()
-    })
-    collection_id, collection_public_key_b64, collection_private_key_secret = r.json.split(
-        ',')
+        'response_start_time': (
+            datetime.datetime.now(datetime.timezone.utc)
+            + datetime.timedelta(minutes=(60 if future else 0))
+        ).timestamp(),
+        'response_end_time': (
+            datetime.datetime.now(datetime.timezone.utc)
+            + datetime.timedelta(minutes=(120 if future else 60))
+        ).timestamp()
+    }
 
-    Collection = namedtuple('Collection',
-                            [
-                                'id',
-                                'collection_public_key_b64',
-                                'collection_private_key_secret',
-                                'client_signing_key'
-                            ])
-    return Collection(
-        collection_id,
-        collection_public_key_b64, collection_private_key_secret,
-        client_signing_key
-    )
+
+Collection = namedtuple('Collection', [
+    'id',
+    'collection_public_key_b64',
+    'collection_private_key_secret'
+])
+
+
+@pytest.fixture(scope='session')
+def collection(client, signing_key):
+    root_req_dict = root_req(signing_key.verify_key_b64)
+    r = client.post('/', json=root_req_dict)
+    return Collection(*(r.json.split(',')))
+
+
+@pytest.fixture(scope='session')
+def future_collection(client, signing_key):
+    root_req_dict = root_req(
+        signing_key.verify_key_b64, future=True)
+    r = client.post('/', json=root_req_dict)
+    return Collection(*(r.json.split(',')))
 
 
 def test_root(client):
@@ -185,9 +209,21 @@ def test_root(client):
     assert r.status_code == 201
 
 
-def test_voucher(client, collection):
+def test_voucher(client, collection, future_collection, signing_key):
     r = client.post('/' + collection.id + '/voucher', data='a')
     assert r.status_code == 400 and r.json == 'Request is not JSON'
 
     r = client.post('/' + collection.id + '/voucher', json={'a': 'b'})
     assert r.status_code == 400 and r.json == 'JSON payload does not conform to schema'
+
+    r = client.post('/a/voucher', json={
+        'collection_private_key_secret': collection.collection_private_key_secret,
+        'client_serial_encrypt': 'a'
+    })
+    assert r.status_code == 404 and r.json == 'Collection ID not found'
+
+    r = client.post('/' + future_collection.id + '/voucher', json={
+        'collection_private_key_secret': future_collection.collection_private_key_secret,
+        'client_serial_encrypt': 'a'
+    })
+    assert r.status_code == 410 and r.json == 'Not within collection interval'
