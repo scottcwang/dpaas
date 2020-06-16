@@ -82,6 +82,7 @@ class RootResource(Resource):
         db.session.commit()
 
         # TODO place collection_private_key_secret in Box
+        # TODO serialise as JSON object
         return_value = ','.join([
             str(collection.id),
             base64.urlsafe_b64encode(collection_public_key.encode()).decode(),

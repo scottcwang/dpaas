@@ -57,6 +57,7 @@ class EntryResource(Resource):
         if len(tail) > 0:
             return 'Voucher contains more than three values', 400
 
+        # TODO remove redundant variables
         client_serial = client_serial_str
         entry_serial = entry_serial_str
         try:
