@@ -38,16 +38,24 @@ class VoucherResource(Resource):
             return 'Already enqueued', 400
         try:
             collection_private_key_decrypted = nacl.secret.SecretBox(
-                data['collection_private_key_secret'], encoder=nacl.encoding.URLSafeBase64Encoder).decrypt(collection.collection_private_key)
+                data['collection_private_key_secret'],
+                encoder=nacl.encoding.URLSafeBase64Encoder
+            ).decrypt(collection.collection_private_key)
         except:
             return 'Incorrect collection private key secret', 400
 
-        box = nacl.public.Box(nacl.public.PrivateKey(collection_private_key_decrypted), nacl.signing.VerifyKey(
-            collection.client_verify_key).to_curve25519_public_key())
+        box = nacl.public.Box(
+            nacl.public.PrivateKey(collection_private_key_decrypted),
+            nacl.signing.VerifyKey(
+                collection.client_verify_key).to_curve25519_public_key()
+        )
 
-        client_serial = base64.urlsafe_b64encode(
-            box.decrypt(data['client_serial_encrypt'], encoder=nacl.encoding.URLSafeBase64Encoder)).decode()
+        client_serial = box.decrypt(
+            data['client_serial_encrypt'],
+            encoder=nacl.encoding.URLSafeBase64Encoder
+        ).decode()
         entry = Entry(collection_id, client_serial)
         db.session.add(entry)
         db.session.commit()
+        # TODO Serialise as JSON object
         return entry.entry_serial, 201
