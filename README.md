@@ -16,6 +16,7 @@ python migrate.py db init
 python migrate.py db migrate
 python migrate.py db upgrade
 flask run
+rq worker
 ```
 
 The test cases are in [test.py](https://github.com/scottcwang/dpaas/blob/master/test.py) and can be run in a separate session.
