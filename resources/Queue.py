@@ -14,9 +14,7 @@ import diffprivlib.models
 
 import pickle
 
-from config import REDIS_QUEUE_IS_ASYNC
-
-q = Queue(connection=redis_conn, is_async=REDIS_QUEUE_IS_ASYNC)
+q = Queue(connection=redis_conn)
 
 
 def process(collection_id, collection_private_key_decrypted):
