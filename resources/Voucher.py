@@ -50,4 +50,9 @@ class VoucherResource(Resource):
         entry = Entry(collection_id, client_serial)
         db.session.add(entry)
         db.session.commit()
-        return entry.entry_serial, 201
+
+        return_value = {
+            'entry_serial': entry.entry_serial
+        }
+
+        return return_value, 201
