@@ -50,7 +50,7 @@ class EntryResource(Resource):
             return 'Voucher could not be verified', 400
 
         try:
-            client_serial_str, entry_serial_str, issued_at_str, * \
+            client_serial, entry_serial, issued_at_str, * \
                 tail = voucher_contents.decode().split(',')
         except:
             return 'Voucher contains fewer than three values', 400
@@ -58,8 +58,6 @@ class EntryResource(Resource):
         if len(tail) > 0:
             return 'Voucher contains more than three values', 400
 
-        client_serial = client_serial_str
-        entry_serial = entry_serial_str
         try:
             issued_at = datetime.datetime.fromtimestamp(
                 float(issued_at_str), datetime.timezone.utc)
