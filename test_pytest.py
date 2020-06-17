@@ -99,28 +99,28 @@ def client_key():
             bytes(signing_key.verify_key)).decode()
     )
 
-# TODO rename client_verify_key_encoded to client_verify_key_b64
-# TODO return a dict with path, json keys to pass as kwargs
 
-
-def root_req(client_verify_key_encoded, future=False):
+def root_req(client_verify_key_b64, future=False):
     return {
-        'attributes': ['attr0', 'attr1', 'attr2'],
-        'fit_model': 'PCA',
-        'attribute_y_index': 2,
-        'fit_arguments': {
-            'epsilon': 1
-        },
-        'description': '# Title\nParagraph',
-        'client_verify_key': client_verify_key_encoded,
-        'response_start_time': (
-            datetime.datetime.now(datetime.timezone.utc)
-            + datetime.timedelta(minutes=(60 if future else 0))
-        ).timestamp(),
-        'response_end_time': (
-            datetime.datetime.now(datetime.timezone.utc)
-            + datetime.timedelta(minutes=(120 if future else 60))
-        ).timestamp()
+        'path': '/',
+        'json': {
+            'attributes': ['attr0', 'attr1', 'attr2'],
+            'fit_model': 'PCA',
+            'attribute_y_index': 2,
+            'fit_arguments': {
+                'epsilon': 1
+            },
+            'description': '# Title\nParagraph',
+            'client_verify_key': client_verify_key_b64,
+            'response_start_time': (
+                datetime.datetime.now(datetime.timezone.utc)
+                + datetime.timedelta(minutes=(60 if future else 0))
+            ).timestamp(),
+            'response_end_time': (
+                datetime.datetime.now(datetime.timezone.utc)
+                + datetime.timedelta(minutes=(120 if future else 60))
+            ).timestamp()
+        }
     }
 
 
@@ -133,16 +133,13 @@ Collection = namedtuple('Collection', [
 
 @pytest.fixture(scope='session')
 def collection(client, client_key):
-    root_req_dict = root_req(client_key.verify_key_b64)
-    r = client.post('/', json=root_req_dict)
+    r = client.post(**root_req(client_key.verify_key_b64))
     return Collection(*(r.json.split(',')))
 
 
 @pytest.fixture(scope='session')
 def future_collection(client, client_key):
-    root_req_dict = root_req(
-        client_key.verify_key_b64, future=True)
-    r = client.post('/', json=root_req_dict)
+    r = client.post(**root_req(client_key.verify_key_b64, future=True))
     return Collection(*(r.json.split(',')))
 
 
@@ -218,9 +215,8 @@ def enqueue_req(collection, client_key):
 
 @pytest.fixture(scope='function')
 def enqueued_collection(client, client_key):
-    root_req_dict = root_req(client_key.verify_key_b64)
-    r = client.post('/', json=root_req_dict)
-    collection = Collection(*(r.json.split(',')))
+    r = client.post(**root_req(client_key.verify_key_b64))
+    collection = Collection(*r.json.split(','))
 
     add_entry(client, collection, client_key)
 
@@ -233,73 +229,27 @@ def enqueued_collection(client, client_key):
     return collection
 
 
-def test_root(client):
+def test_root(client, client_key):
     r = client.post('/', data='a')
     assert r.status_code == 400 and r.json == 'Request is not JSON'
 
     r = client.post('/', json={'a': 'b'})
     assert r.status_code == 400 and r.json == 'JSON payload does not conform to schema'
 
-    # TODO call root_req instead
-    r = client.post('/', json={
-        'attributes': ['attr0', 'attr1', 'attr2'],
-        'fit_model': 'PCA',
-        'attribute_y_index': 2,
-        'fit_arguments': {
-            'epsilon': 1
-        },
-        'description': '# Title\nParagraph',
-        'client_verify_key': 'a',
-        'response_start_time': datetime.datetime.now(datetime.timezone.utc).timestamp(),
-        'response_end_time': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=60)).timestamp()
-    })
+    r = client.post(**root_req('a'))
     assert r.status_code == 400 and r.json == 'Public key could not be parsed'
 
-    # TODO use client_key fixture
-    client_signing_key = nacl.signing.SigningKey.generate()
-    client_verify_key_encoded = base64.urlsafe_b64encode(
-        bytes(client_signing_key.verify_key)).decode()
-
-    r = client.post('/', json={
-        'attributes': ['attr0', 'attr1', 'attr2'],
-        'fit_model': 'a',
-        'attribute_y_index': 2,
-        'fit_arguments': {
-            'epsilon': 1
-        },
-        'description': '# Title\nParagraph',
-        'client_verify_key': client_verify_key_encoded,
-        'response_start_time': datetime.datetime.now(datetime.timezone.utc).timestamp(),
-        'response_end_time': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=60)).timestamp()
-    })
+    root_req_dict = root_req(client_key.verify_key_b64)
+    root_req_dict['json']['fit_model'] = 'a'
+    r = client.post(**root_req_dict)
     assert r.status_code == 400 and r.json == 'Fit model is not supported'
 
-    r = client.post('/', json={
-        'attributes': ['attr0', 'attr1', 'attr2'],
-        'fit_model': 'PCA',
-        'attribute_y_index': 3,
-        'fit_arguments': {
-            'epsilon': 1
-        },
-        'description': '# Title\nParagraph',
-        'client_verify_key': client_verify_key_encoded,
-        'response_start_time': datetime.datetime.now(datetime.timezone.utc).timestamp(),
-        'response_end_time': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=60)).timestamp()
-    })
+    root_req_dict = root_req(client_key.verify_key_b64)
+    root_req_dict['json']['attribute_y_index'] = 3
+    r = client.post(**root_req_dict)
     assert r.status_code == 400 and r.json == 'attribute_y_index invalid'
 
-    r = client.post('/', json={
-        'attributes': ['attr0', 'attr1', 'attr2'],
-        'fit_model': 'PCA',
-        'attribute_y_index': 2,
-        'fit_arguments': {
-            'epsilon': 1
-        },
-        'description': '# Title\nParagraph',
-        'client_verify_key': client_verify_key_encoded,
-        'response_start_time': datetime.datetime.now(datetime.timezone.utc).timestamp(),
-        'response_end_time': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=60)).timestamp()
-    })
+    r = client.post(**root_req(client_key.verify_key_b64))
     assert r.status_code == 201
 
 
