@@ -4,12 +4,14 @@ import tempfile
 import shutil
 import time
 from collections import namedtuple
+import secrets
 
 import nacl.signing
 import pytest
 import docker
 from dotenv import load_dotenv
 import flask_migrate
+from bs4 import BeautifulSoup
 
 from run import create_app
 from Model import db
@@ -82,20 +84,23 @@ def client():
         docker_client.images.remove("redis")
 
 
-SigningKey = namedtuple('SigningKey', [
+ClientKey = namedtuple('ClientKey', [
     'signing_key',
     'verify_key_b64'
 ])
 
 
 @pytest.fixture(scope='session')
-def signing_key():
-    client_signing_key = nacl.signing.SigningKey.generate()
-    return SigningKey(
-        client_signing_key,
+def client_key():
+    signing_key = nacl.signing.SigningKey.generate()
+    return ClientKey(
+        signing_key,
         base64.urlsafe_b64encode(
-            bytes(client_signing_key.verify_key)).decode()
+            bytes(signing_key.verify_key)).decode()
     )
+
+# TODO rename client_verify_key_encoded to client_verify_key_b64
+# TODO return a dict with path, json keys to pass as kwargs
 
 
 def root_req(client_verify_key_encoded, future=False):
@@ -121,24 +126,111 @@ def root_req(client_verify_key_encoded, future=False):
 
 Collection = namedtuple('Collection', [
     'id',
-    'collection_public_key_b64',
-    'collection_private_key_secret'
+    'public_key_b64',
+    'private_key_secret'
 ])
 
 
 @pytest.fixture(scope='session')
-def collection(client, signing_key):
-    root_req_dict = root_req(signing_key.verify_key_b64)
+def collection(client, client_key):
+    root_req_dict = root_req(client_key.verify_key_b64)
     r = client.post('/', json=root_req_dict)
     return Collection(*(r.json.split(',')))
 
 
 @pytest.fixture(scope='session')
-def future_collection(client, signing_key):
+def future_collection(client, client_key):
     root_req_dict = root_req(
-        signing_key.verify_key_b64, future=True)
+        client_key.verify_key_b64, future=True)
     r = client.post('/', json=root_req_dict)
     return Collection(*(r.json.split(',')))
+
+
+def voucher_req(collection, client_serial, client_key):
+    collection_public_key = nacl.public.PublicKey(
+        base64.urlsafe_b64decode(collection.public_key_b64))
+
+    client_serial_encrypt = nacl.public.Box(
+        client_key.signing_key.to_curve25519_private_key(),
+        collection_public_key
+    ).encrypt(client_serial.encode())
+
+    return {
+        'path': '/' + collection.id + '/voucher',
+        'json': {
+            'collection_private_key_secret': collection.private_key_secret,
+            'client_serial_encrypt': base64.urlsafe_b64encode(client_serial_encrypt).decode()
+        }
+    }
+
+
+def entry_req(collection, client_serial, entry_serial, client_key):
+    voucher_bytes = ','.join([
+        client_serial,
+        entry_serial,
+        str(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    ]).encode()
+    voucher_sign = client_key.signing_key.sign(voucher_bytes)
+    voucher_b64 = base64.urlsafe_b64encode(voucher_sign).decode()
+    return {
+        'path': '/' + collection.id + '/entry/' + voucher_b64
+    }
+
+
+def submit_req(entry_serial, csrf_token_form, session_token):
+    return {
+        'path': '/submit/' + entry_serial,
+        'data': {
+            'csrf_token': csrf_token_form,
+            'session_token': session_token,
+            'field_0': 0,
+            'field_1': 1,
+            'field_2': 2
+        }
+    }
+
+
+def add_entry(client, collection, client_key):
+    client_serial = secrets.token_urlsafe(16)
+    r = client.post(
+        **voucher_req(collection, client_serial, client_key))
+    entry_serial = r.json
+
+    r = client.get(**entry_req(collection, client_serial,
+                               entry_serial, client_key))
+    soup = BeautifulSoup(r.data, features="html.parser")
+    csrf_token_form = soup.find(id='csrf_token')['value']
+    session_token = soup.find(id='session_token')['value']
+    entry_serial = soup.find(id='entry_serial').string
+
+    r = client.post(**submit_req(entry_serial, csrf_token_form,
+                                 session_token))
+
+
+def enqueue_req(collection, client_key):
+    return {
+        'path': '/' + collection.id + '/enqueue',
+        'json': {
+            'collection_private_key_secret': collection.private_key_secret
+        }
+    }
+
+
+@pytest.fixture(scope='function')
+def enqueued_collection(client, client_key):
+    root_req_dict = root_req(client_key.verify_key_b64)
+    r = client.post('/', json=root_req_dict)
+    collection = Collection(*(r.json.split(',')))
+
+    add_entry(client, collection, client_key)
+
+    time.sleep(10)
+
+    add_entry(client, collection, client_key)
+
+    r = client.post(**enqueue_req(collection, client_key))
+
+    return collection
 
 
 def test_root(client):
@@ -148,6 +240,7 @@ def test_root(client):
     r = client.post('/', json={'a': 'b'})
     assert r.status_code == 400 and r.json == 'JSON payload does not conform to schema'
 
+    # TODO call root_req instead
     r = client.post('/', json={
         'attributes': ['attr0', 'attr1', 'attr2'],
         'fit_model': 'PCA',
@@ -162,6 +255,7 @@ def test_root(client):
     })
     assert r.status_code == 400 and r.json == 'Public key could not be parsed'
 
+    # TODO use client_key fixture
     client_signing_key = nacl.signing.SigningKey.generate()
     client_verify_key_encoded = base64.urlsafe_b64encode(
         bytes(client_signing_key.verify_key)).decode()
@@ -209,7 +303,7 @@ def test_root(client):
     assert r.status_code == 201
 
 
-def test_voucher(client, collection, future_collection, signing_key):
+def test_voucher(client, collection, future_collection, enqueued_collection):
     r = client.post('/' + collection.id + '/voucher', data='a')
     assert r.status_code == 400 and r.json == 'Request is not JSON'
 
@@ -217,13 +311,19 @@ def test_voucher(client, collection, future_collection, signing_key):
     assert r.status_code == 400 and r.json == 'JSON payload does not conform to schema'
 
     r = client.post('/a/voucher', json={
-        'collection_private_key_secret': collection.collection_private_key_secret,
+        'collection_private_key_secret': collection.private_key_secret,
         'client_serial_encrypt': 'a'
     })
     assert r.status_code == 404 and r.json == 'Collection ID not found'
 
     r = client.post('/' + future_collection.id + '/voucher', json={
-        'collection_private_key_secret': future_collection.collection_private_key_secret,
+        'collection_private_key_secret': future_collection.private_key_secret,
         'client_serial_encrypt': 'a'
     })
     assert r.status_code == 410 and r.json == 'Not within collection interval'
+
+    r = client.post('/' + enqueued_collection.id + '/voucher', json={
+        'collection_private_key_secret': enqueued_collection.private_key_secret,
+        'client_serial_encrypt': 'a'
+    })
+    assert r.status_code == 400 and r.json == 'Already enqueued'
