@@ -33,14 +33,15 @@ def create_form(attributes, session_token):
 
 
 class EntryResource(Resource):
-    # TODO change verb. This GET is state-changing
+    # To read voucher from path, must be GET (despite being state-changing)
     def get(self, collection_id, voucher):
         collection = Collection.query.get(collection_id)
         if not collection:
             return 'Collection ID not found', 404
         if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
             return 'Not within collection interval', 410
-        # TODO block if enqueued or later
+        if collection.status is not None:
+            return 'Already enqueued', 400
         try:
             verify_key = nacl.signing.VerifyKey(collection.client_verify_key)
             voucher_contents = verify_key.verify(
@@ -49,7 +50,7 @@ class EntryResource(Resource):
             return 'Voucher could not be verified', 400
 
         try:
-            client_serial_str, entry_serial_str, issued_at_str, * \
+            client_serial, entry_serial, issued_at_str, * \
                 tail = voucher_contents.decode().split(',')
         except:
             return 'Voucher contains fewer than three values', 400
@@ -57,9 +58,6 @@ class EntryResource(Resource):
         if len(tail) > 0:
             return 'Voucher contains more than three values', 400
 
-        # TODO remove redundant variables
-        client_serial = client_serial_str
-        entry_serial = entry_serial_str
         try:
             issued_at = datetime.datetime.fromtimestamp(
                 float(issued_at_str), datetime.timezone.utc)
@@ -103,8 +101,10 @@ class EntryResource(Resource):
         if not form.validate():
             return 'Form data does not conform to schema, or CSRF token does not match', 400
 
-        # TODO block if not within collection interval
-        # TODO block if enqueued or later
+        if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
+            return 'Not within collection interval', 410
+        if collection.status is not None:
+            return 'Already enqueued', 400
 
         if entry.session_token != form.session_token.data:
             return 'Incorrect session token', 403
