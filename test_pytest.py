@@ -134,13 +134,13 @@ Collection = namedtuple('Collection', [
 @pytest.fixture(scope='session')
 def collection(client, client_key):
     r = client.post(**root_req(client_key.verify_key_b64))
-    return Collection(*(r.json.split(',')))
+    return Collection(**r.json)
 
 
 @pytest.fixture(scope='session')
 def future_collection(client, client_key):
     r = client.post(**root_req(client_key.verify_key_b64, future=True))
-    return Collection(*(r.json.split(',')))
+    return Collection(**r.json)
 
 
 def voucher_req(collection, client_serial, client_key):
@@ -190,18 +190,21 @@ def submit_req(entry_serial, csrf_token_form, session_token):
 def add_entry(client, collection, client_key):
     client_serial = secrets.token_urlsafe(16)
     r = client.post(
-        **voucher_req(collection, client_serial, client_key))
-    entry_serial = r.json
+        **voucher_req(collection, client_serial, client_key)
+    )
+    entry_serial = r.json['entry_serial']
 
-    r = client.get(**entry_req(collection, client_serial,
-                               entry_serial, client_key))
+    r = client.get(
+        **entry_req(collection, client_serial, entry_serial, client_key)
+    )
     soup = BeautifulSoup(r.data, features="html.parser")
     csrf_token_form = soup.find(id='csrf_token')['value']
     session_token = soup.find(id='session_token')['value']
     entry_serial = soup.find(id='entry_serial').string
 
-    r = client.post(**submit_req(entry_serial, csrf_token_form,
-                                 session_token))
+    r = client.post(
+        **submit_req(entry_serial, csrf_token_form, session_token)
+    )
 
 
 def enqueue_req(collection, client_key):
@@ -216,7 +219,7 @@ def enqueue_req(collection, client_key):
 @pytest.fixture(scope='function')
 def enqueued_collection(client, client_key):
     r = client.post(**root_req(client_key.verify_key_b64))
-    collection = Collection(*r.json.split(','))
+    collection = Collection(**r.json)
 
     add_entry(client, collection, client_key)
 
