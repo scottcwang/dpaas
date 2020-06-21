@@ -253,7 +253,7 @@ def test_root(client, client_key):
     assert r.status_code == 400 and r.json == 'attribute_y_index invalid'
 
     r = client.post(**root_req(client_key.verify_key_b64))
-    assert r.status_code == 201
+    assert r.status_code == 201  # TODO validate schema of response JSON
 
 
 def test_voucher(client, collection, future_collection, enqueued_collection, client_key):
@@ -279,3 +279,14 @@ def test_voucher(client, collection, future_collection, enqueued_collection, cli
         enqueued_collection, secrets.token_urlsafe(16), client_key)
     r = client.post(**voucher_req_dict)
     assert r.status_code == 400 and r.json == 'Already enqueued'
+
+    voucher_req_dict = voucher_req(
+        collection, secrets.token_urlsafe(16), client_key)
+    voucher_req_dict['json']['collection_private_key_secret'] = 'a'
+    r = client.post(**voucher_req_dict)
+    assert r.status_code == 400 and r.json == 'Incorrect collection private key secret'
+
+    voucher_req_dict = voucher_req(
+        collection, secrets.token_urlsafe(16), client_key)
+    r = client.post(**voucher_req_dict)
+    assert r.status_code == 201 # TODO validate schema of response JSON
