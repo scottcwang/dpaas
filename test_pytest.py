@@ -256,27 +256,26 @@ def test_root(client, client_key):
     assert r.status_code == 201
 
 
-def test_voucher(client, collection, future_collection, enqueued_collection):
+def test_voucher(client, collection, future_collection, enqueued_collection, client_key):
     r = client.post('/' + collection.id + '/voucher', data='a')
     assert r.status_code == 400 and r.json == 'Request is not JSON'
 
     r = client.post('/' + collection.id + '/voucher', json={'a': 'b'})
     assert r.status_code == 400 and r.json == 'JSON payload does not conform to schema'
 
-    r = client.post('/a/voucher', json={
-        'collection_private_key_secret': collection.private_key_secret,
-        'client_serial_encrypt': 'a'
-    })
+    voucher_req_dict = voucher_req(
+        collection, secrets.token_urlsafe(16), client_key)
+    voucher_req_dict['path'] = voucher_req_dict['path'].replace(
+        collection.id, 'a')
+    r = client.post(**voucher_req_dict)
     assert r.status_code == 404 and r.json == 'Collection ID not found'
 
-    r = client.post('/' + future_collection.id + '/voucher', json={
-        'collection_private_key_secret': future_collection.private_key_secret,
-        'client_serial_encrypt': 'a'
-    })
+    voucher_req_dict = voucher_req(
+        future_collection, secrets.token_urlsafe(16), client_key)
+    r = client.post(**voucher_req_dict)
     assert r.status_code == 410 and r.json == 'Not within collection interval'
 
-    r = client.post('/' + enqueued_collection.id + '/voucher', json={
-        'collection_private_key_secret': enqueued_collection.private_key_secret,
-        'client_serial_encrypt': 'a'
-    })
+    voucher_req_dict = voucher_req(
+        enqueued_collection, secrets.token_urlsafe(16), client_key)
+    r = client.post(**voucher_req_dict)
     assert r.status_code == 400 and r.json == 'Already enqueued'
