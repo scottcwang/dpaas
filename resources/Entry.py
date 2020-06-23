@@ -62,7 +62,7 @@ class EntryResource(Resource):
             issued_at = datetime.datetime.fromtimestamp(
                 float(issued_at_str), datetime.timezone.utc)
         except:
-            return 'Timestamp invalid'
+            return 'Timestamp invalid', 400
 
         entry = Entry.query.get(entry_serial)
         if not entry:
