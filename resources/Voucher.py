@@ -45,8 +45,14 @@ class VoucherResource(Resource):
         box = nacl.public.Box(nacl.public.PrivateKey(collection_private_key_decrypted), nacl.signing.VerifyKey(
             collection.client_verify_key).to_curve25519_public_key())
 
-        client_serial = base64.urlsafe_b64encode(
-            box.decrypt(data['client_serial_encrypt'], encoder=nacl.encoding.URLSafeBase64Encoder)).decode()
+        client_serial = box.decrypt(
+            data['client_serial_encrypt'],
+            encoder=nacl.encoding.URLSafeBase64Encoder
+        ).decode()
+
+        if Entry.query.filter_by(collection_id=collection_id, client_serial=client_serial).count() != 0:
+            return 'Client serial already used', 400
+
         entry = Entry(collection_id, client_serial)
         db.session.add(entry)
         db.session.commit()

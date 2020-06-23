@@ -136,8 +136,6 @@ r = requests.post(
 assert r.status_code == 201
 entry_serial = r.json()
 
-# TODO Test that attempt to reuse client_serial_encrypt fails
-
 voucher = ','.join(
     [base64.urlsafe_b64encode(client_serial).decode(), entry_serial, str(datetime.datetime.now(datetime.timezone.utc).timestamp())])
 voucher_sign = client_signing_key.sign(voucher.encode())
