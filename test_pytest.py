@@ -1,3 +1,4 @@
+import os
 import datetime
 import base64
 import tempfile
@@ -19,10 +20,6 @@ from Model import db
 
 @pytest.fixture(scope='session')
 def client():
-    load_dotenv(dotenv_path='./.flaskenv')
-    app = create_app()
-    app.testing = True
-
     docker_client = docker.from_env()
 
     postgres_pulled = False
@@ -40,7 +37,7 @@ def client():
     )
     postgres_container.reload()
     postgres_port = postgres_container.ports["5432/tcp"][0]["HostPort"]
-    app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres:password@127.0.0.1:" + postgres_port
+    os.environ["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres:password@127.0.0.1:" + postgres_port
 
     redis_pulled = False
     try:
@@ -56,7 +53,11 @@ def client():
     )
     redis_container.reload()
     redis_port = redis_container.ports["6379/tcp"][0]["HostPort"]
-    app.config["REDIS_URL"] = "redis://127.0.0.1:" + redis_port
+    os.environ["REDIS_URL"] = "redis://127.0.0.1:" + redis_port
+
+    load_dotenv(dotenv_path='./.flaskenv')
+    app = create_app()
+    app.testing = True
 
     time.sleep(10)
 
