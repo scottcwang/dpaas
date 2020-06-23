@@ -188,24 +188,25 @@ def submit_req(entry_serial, csrf_token_form, session_token):
     }
 
 
-def add_entry(client, collection, client_key):
+def redeem_voucher_for_entry_form(client, collection, client_key):
     client_serial = secrets.token_urlsafe(16)
     r = client.post(
         **voucher_req(collection, client_serial, client_key)
     )
     entry_serial = r.json['entry_serial']
 
-    r = client.get(
-        **entry_req(collection, client_serial, entry_serial, client_key)
-    )
+    return entry_req(collection, client_serial, entry_serial, client_key)
+
+
+def submit_entry_form(client, collection, client_key):
+    r = client.get(**redeem_voucher_for_entry_form(
+        client, collection, client_key))
     soup = BeautifulSoup(r.data, features="html.parser")
     csrf_token_form = soup.find(id='csrf_token')['value']
     session_token = soup.find(id='session_token')['value']
     entry_serial = soup.find(id='entry_serial').string
 
-    r = client.post(
-        **submit_req(entry_serial, csrf_token_form, session_token)
-    )
+    return submit_req(entry_serial, csrf_token_form, session_token)
 
 
 def enqueue_req(collection, client_key):
@@ -222,11 +223,11 @@ def enqueued_collection(client, client_key):
     r = client.post(**root_req(client_key.verify_key_b64))
     collection = Collection(**r.json)
 
-    add_entry(client, collection, client_key)
+    client.post(**submit_entry_form(client, collection, client_key))
 
     time.sleep(10)
 
-    add_entry(client, collection, client_key)
+    client.post(**submit_entry_form(client, collection, client_key))
 
     r = client.post(**enqueue_req(collection, client_key))
 
@@ -290,4 +291,124 @@ def test_voucher(client, collection, future_collection, enqueued_collection, cli
     voucher_req_dict = voucher_req(
         collection, secrets.token_urlsafe(16), client_key)
     r = client.post(**voucher_req_dict)
-    assert r.status_code == 201 # TODO validate schema of response JSON
+    assert r.status_code == 201  # TODO validate schema of response JSON
+
+    r = client.post(**voucher_req_dict)
+    assert r.status_code == 400 and r.json == 'Client serial already used'
+
+
+def test_entry(client, collection, future_collection, enqueued_collection, client_key):
+    redeem_voucher_for_entry_form_dict = redeem_voucher_for_entry_form(
+        client, collection, client_key)
+    redeem_voucher_for_entry_form_dict['path'] = redeem_voucher_for_entry_form_dict['path'].replace(
+        collection.id, 'a')
+    r = client.get(**redeem_voucher_for_entry_form_dict)
+    assert r.status_code == 404 and r.json == 'Collection ID not found'
+
+    # TODO Test for successfully registered vouchers
+    r = client.get(**entry_req(future_collection, 'a', 'a', client_key))
+    assert r.status_code == 410 and r.json == 'Not within collection interval'
+
+    # TODO Test for successfully registered vouchers
+    r = client.get(**entry_req(enqueued_collection, 'a', 'a', client_key))
+    assert r.status_code == 400 and r.json == 'Already enqueued'
+
+    bad_client_key = nacl.signing.SigningKey.generate()
+    voucher_bytes = ','.join([
+        'a',
+        'a',
+        str(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    ]).encode()
+    voucher_sign = bad_client_key.sign(voucher_bytes)
+    voucher_b64 = base64.urlsafe_b64encode(voucher_sign).decode()
+    r = client.get('/' + collection.id + '/entry/' + voucher_b64)
+    assert r.status_code == 400 and r.json == 'Voucher could not be verified'
+
+    voucher_bytes = ','.join([
+        'a',
+        'a'
+    ]).encode()
+    voucher_sign = client_key.signing_key.sign(voucher_bytes)
+    voucher_b64 = base64.urlsafe_b64encode(voucher_sign).decode()
+    r = client.get('/' + collection.id + '/entry/' + voucher_b64)
+    assert r.status_code == 400 and r.json == 'Voucher contains fewer than three values'
+
+    voucher_bytes = ','.join([
+        'a',
+        'a',
+        str(datetime.datetime.now(datetime.timezone.utc).timestamp()),
+        'a'
+    ]).encode()
+    voucher_sign = client_key.signing_key.sign(voucher_bytes)
+    voucher_b64 = base64.urlsafe_b64encode(voucher_sign).decode()
+    r = client.get('/' + collection.id + '/entry/' + voucher_b64)
+    assert r.status_code == 400 and r.json == 'Voucher contains more than three values'
+
+    voucher_bytes = ','.join([
+        'a',
+        'a',
+        'a'
+    ]).encode()
+    voucher_sign = client_key.signing_key.sign(voucher_bytes)
+    voucher_b64 = base64.urlsafe_b64encode(voucher_sign).decode()
+    r = client.get('/' + collection.id + '/entry/' + voucher_b64)
+    assert r.status_code == 400 and r.json == 'Timestamp invalid'
+
+    voucher_bytes = ','.join([
+        'a',
+        'a',
+        str(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    ]).encode()
+    voucher_sign = client_key.signing_key.sign(voucher_bytes)
+    voucher_b64 = base64.urlsafe_b64encode(voucher_sign).decode()
+    r = client.get('/' + collection.id + '/entry/' + voucher_b64)
+    assert r.status_code == 404 and r.json == 'Entry does not exist'
+
+    r = client.post(**root_req(client_key.verify_key_b64))
+    collection_two = Collection(**r.json)
+    redeem_voucher_for_entry_form_dict = redeem_voucher_for_entry_form(
+        client, collection_two, client_key)
+    redeem_voucher_for_entry_form_dict['path'] = redeem_voucher_for_entry_form_dict['path'].replace(
+        collection_two.id, collection.id)
+    r = client.get(**redeem_voucher_for_entry_form_dict)
+    assert r.status_code == 400 and r.json == 'Entry serial not for this collection'
+
+    r = client.post(
+        **voucher_req(collection, secrets.token_urlsafe(16), client_key)
+    )
+    entry_serial = r.json['entry_serial']
+    voucher_bytes = ','.join([
+        secrets.token_urlsafe(16),
+        entry_serial,
+        str(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    ]).encode()
+    voucher_sign = client_key.signing_key.sign(voucher_bytes)
+    voucher_b64 = base64.urlsafe_b64encode(voucher_sign).decode()
+    r = client.get('/' + collection.id + '/entry/' + voucher_b64)
+    assert r.status_code == 400 and r.json == 'Voucher client serial does not match registration'
+
+    client_serial = secrets.token_urlsafe(16)
+    r = client.post(
+        **voucher_req(collection, client_serial, client_key)
+    )
+    entry_serial = r.json['entry_serial']
+    voucher_bytes = ','.join([
+        client_serial,
+        entry_serial,
+        str((datetime.datetime.now(datetime.timezone.utc) -
+             datetime.timedelta(seconds=120)).timestamp())
+    ]).encode()
+    voucher_sign = client_key.signing_key.sign(voucher_bytes)
+    voucher_b64 = base64.urlsafe_b64encode(voucher_sign).decode()
+    r = client.get('/' + collection.id + '/entry/' + voucher_b64)
+    assert r.status_code == 400 and r.json == 'Voucher not issued and registered at same time'
+
+    redeem_voucher_for_entry_form_dict = redeem_voucher_for_entry_form(
+        client, collection, client_key)
+    r = client.get(**redeem_voucher_for_entry_form_dict)
+    assert r.status_code == 200
+
+    # TODO Test returned HTML has correct form fields
+
+    r = client.get(**redeem_voucher_for_entry_form_dict)
+    assert r.status_code == 400 and r.json == 'Voucher already redeemed for a form'
