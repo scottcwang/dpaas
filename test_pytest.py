@@ -138,12 +138,6 @@ def collection(client, client_key):
     return Collection(**r.json)
 
 
-@pytest.fixture(scope='session')
-def future_collection(client, client_key):
-    r = client.post(**root_req(client_key.verify_key_b64, future=True))
-    return Collection(**r.json)
-
-
 def voucher_req(collection, client_serial, client_key):
     collection_public_key = nacl.public.PublicKey(
         base64.urlsafe_b64decode(collection.public_key_b64))
@@ -218,22 +212,6 @@ def enqueue_req(collection, client_key):
     }
 
 
-@pytest.fixture(scope='function')
-def enqueued_collection(client, client_key):
-    r = client.post(**root_req(client_key.verify_key_b64))
-    collection = Collection(**r.json)
-
-    client.post(**submit_entry_form(client, collection, client_key))
-
-    time.sleep(10)
-
-    client.post(**submit_entry_form(client, collection, client_key))
-
-    r = client.post(**enqueue_req(collection, client_key))
-
-    return collection
-
-
 def test_root(client, client_key):
     r = client.post('/', data='a')
     assert r.status_code == 400 and r.json == 'Request is not JSON'
@@ -258,7 +236,7 @@ def test_root(client, client_key):
     assert r.status_code == 201  # TODO validate schema of response JSON
 
 
-def test_voucher(client, collection, future_collection, enqueued_collection, client_key):
+def test_voucher(client, collection, client_key):
     r = client.post('/' + collection.id + '/voucher', data='a')
     assert r.status_code == 400 and r.json == 'Request is not JSON'
 
@@ -272,14 +250,35 @@ def test_voucher(client, collection, future_collection, enqueued_collection, cli
     r = client.post(**voucher_req_dict)
     assert r.status_code == 404 and r.json == 'Collection ID not found'
 
-    voucher_req_dict = voucher_req(
-        future_collection, secrets.token_urlsafe(16), client_key)
-    r = client.post(**voucher_req_dict)
+    root_req_dict = root_req(client_key.verify_key_b64)
+    root_req_dict['json']['response_end_time'] = (
+        datetime.datetime.now(datetime.timezone.utc)
+        + datetime.timedelta(seconds=10)
+    ).timestamp()
+    r = client.post(**root_req_dict)
+    past_collection = Collection(**r.json)
+    time.sleep(20)
+    r = client.post(**voucher_req(past_collection, 'a', client_key))
     assert r.status_code == 410 and r.json == 'Not within collection interval'
 
-    voucher_req_dict = voucher_req(
-        enqueued_collection, secrets.token_urlsafe(16), client_key)
-    r = client.post(**voucher_req_dict)
+    root_req_dict = root_req(client_key.verify_key_b64)
+    root_req_dict['json']['response_start_time'] = (
+        datetime.datetime.now(datetime.timezone.utc)
+        + datetime.timedelta(minutes=60)
+    ).timestamp()
+    root_req_dict['json']['response_end_time'] = (
+        datetime.datetime.now(datetime.timezone.utc)
+        + datetime.timedelta(minutes=120)
+    ).timestamp()
+    r = client.post(**root_req_dict)
+    past_collection = Collection(**r.json)
+    r = client.post(**voucher_req(past_collection, 'a', client_key))
+    assert r.status_code == 410 and r.json == 'Not within collection interval'
+
+    r = client.post(**root_req(client_key.verify_key_b64))
+    enqueued_collection = Collection(**r.json)
+    r = client.post(**enqueue_req(enqueued_collection, client_key))
+    r = client.post(**voucher_req(enqueued_collection, 'a', client_key))
     assert r.status_code == 400 and r.json == 'Already enqueued'
 
     voucher_req_dict = voucher_req(
@@ -297,7 +296,7 @@ def test_voucher(client, collection, future_collection, enqueued_collection, cli
     assert r.status_code == 400 and r.json == 'Client serial already used'
 
 
-def test_entry(client, collection, future_collection, enqueued_collection, client_key):
+def test_entry(client, collection, client_key):
     redeem_voucher_for_entry_form_dict = redeem_voucher_for_entry_form(
         client, collection, client_key)
     redeem_voucher_for_entry_form_dict['path'] = redeem_voucher_for_entry_form_dict['path'].replace(
@@ -305,12 +304,26 @@ def test_entry(client, collection, future_collection, enqueued_collection, clien
     r = client.get(**redeem_voucher_for_entry_form_dict)
     assert r.status_code == 404 and r.json == 'Collection ID not found'
 
-    # TODO Test for successfully registered vouchers
-    r = client.get(**entry_req(future_collection, 'a', 'a', client_key))
+    root_req_dict = root_req(client_key.verify_key_b64)
+    root_req_dict['json']['response_end_time'] = (
+        datetime.datetime.now(datetime.timezone.utc)
+        + datetime.timedelta(seconds=10)
+    ).timestamp()
+    r = client.post(**root_req_dict)
+    past_collection = Collection(**r.json)
+    r = client.post(**voucher_req(past_collection, 'a', client_key))
+    entry_serial = r.json['entry_serial']
+    time.sleep(20)
+    r = client.get(**entry_req(past_collection, 'a', entry_serial, client_key))
     assert r.status_code == 410 and r.json == 'Not within collection interval'
 
-    # TODO Test for successfully registered vouchers
-    r = client.get(**entry_req(enqueued_collection, 'a', 'a', client_key))
+    r = client.post(**root_req(client_key.verify_key_b64))
+    enqueued_collection = Collection(**r.json)
+    r = client.post(**voucher_req(enqueued_collection, 'a', client_key))
+    entry_serial = r.json['entry_serial']
+    r = client.post(**enqueue_req(enqueued_collection, client_key))
+    r = client.get(**entry_req(enqueued_collection,
+                               'a', entry_serial, client_key))
     assert r.status_code == 400 and r.json == 'Already enqueued'
 
     bad_client_key = nacl.signing.SigningKey.generate()
