@@ -54,6 +54,10 @@ class VoucherResource(Resource):
             data['client_serial_encrypt'],
             encoder=nacl.encoding.URLSafeBase64Encoder
         ).decode()
+
+        if Entry.query.filter_by(collection_id=collection_id, client_serial=client_serial).count() != 0:
+            return 'Client serial already used', 400
+
         entry = Entry(collection_id, client_serial)
         db.session.add(entry)
         db.session.commit()
