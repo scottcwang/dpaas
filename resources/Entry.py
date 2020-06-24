@@ -95,6 +95,9 @@ class EntryResource(Resource):
         entry = Entry.query.get(entry_serial)
         if not entry:
             return 'Entry does not exist', 404
+        if entry.values is not None:
+            return 'Form already submitted', 400
+
         collection = entry.collection
         form = create_form([(attribute, '')
                             for attribute in collection.attributes], '')()
