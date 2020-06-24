@@ -192,17 +192,6 @@ def redeem_voucher_for_entry_form(client, collection, client_key):
     return entry_req(collection, client_serial, entry_serial, client_key)
 
 
-def submit_entry_form(client, collection, client_key):
-    r = client.get(**redeem_voucher_for_entry_form(
-        client, collection, client_key))
-    soup = BeautifulSoup(r.data, features="html.parser")
-    csrf_token_form = soup.find(id='csrf_token')['value']
-    session_token = soup.find(id='session_token')['value']
-    entry_serial = soup.find(id='entry_serial').string
-
-    return submit_req(entry_serial, csrf_token_form, session_token)
-
-
 def enqueue_req(collection, client_key):
     return {
         'path': '/' + collection.id + '/enqueue',
@@ -425,3 +414,88 @@ def test_entry(client, collection, client_key):
 
     r = client.get(**redeem_voucher_for_entry_form_dict)
     assert r.status_code == 400 and r.json == 'Voucher already redeemed for a form'
+
+
+def parse_entry_form(data):
+    soup = BeautifulSoup(data, features="html.parser")
+    csrf_token_form = soup.find(id='csrf_token')['value']
+    session_token = soup.find(id='session_token')['value']
+    entry_serial = soup.find(id='entry_serial').string
+
+    return {
+        'entry_serial': entry_serial,
+        'csrf_token_form': csrf_token_form,
+        'session_token': session_token
+    }
+
+
+def test_submit(client, collection, client_key):
+    r = client.get(
+        **redeem_voucher_for_entry_form(client, collection, client_key))
+    parse_entry_form_dict = parse_entry_form(r.data)
+    parse_entry_form_dict['entry_serial'] = 'a'
+    r = client.post(**submit_req(**parse_entry_form_dict))
+    assert r.status_code == 404 and r.json == 'Entry does not exist'
+
+    r = client.get(
+        **redeem_voucher_for_entry_form(client, collection, client_key))
+    submit_req_dict = submit_req(**parse_entry_form(r.data))
+    submit_req_dict['data']['csrf_token'] = 'a'
+    r = client.post(**submit_req_dict)
+    assert r.status_code == 400 and r.json == 'Form data does not conform to schema, or CSRF token does not match'
+
+    r = client.get(
+        **redeem_voucher_for_entry_form(client, collection, client_key))
+    submit_req_dict = submit_req(**parse_entry_form(r.data))
+    del submit_req_dict['data']['field_0']
+    r = client.post(**submit_req_dict)
+    assert r.status_code == 400 and r.json == 'Form data does not conform to schema, or CSRF token does not match'
+
+    root_req_dict = root_req(client_key.verify_key_b64)
+    root_req_dict['json']['response_end_time'] = (
+        datetime.datetime.now(datetime.timezone.utc)
+        + datetime.timedelta(seconds=10)
+    ).timestamp()
+    r = client.post(**root_req_dict)
+    past_collection = Collection(**r.json)
+    r = client.post(**voucher_req(past_collection, 'a', client_key))
+    entry_serial = r.json['entry_serial']
+    r = client.get(
+        **redeem_voucher_for_entry_form(client, past_collection, client_key))
+    time.sleep(20)
+    r = client.post(**submit_req(**parse_entry_form(r.data)))
+    assert r.status_code == 410 and r.json == 'Not within collection interval'
+
+    r = client.post(**root_req(client_key.verify_key_b64))
+    enqueued_collection = Collection(**r.json)
+    r = client.post(**voucher_req(enqueued_collection, 'a', client_key))
+    entry_serial = r.json['entry_serial']
+    r = client.get(**entry_req(enqueued_collection,
+                               'a', entry_serial, client_key))
+    data = r.data
+    r = client.post(**enqueue_req(enqueued_collection, client_key))
+    r = client.post(**submit_req(**parse_entry_form(data)))
+    assert r.status_code == 400 and r.json == 'Already enqueued'
+
+    r = client.get(
+        **redeem_voucher_for_entry_form(client, collection, client_key))
+    submit_req_dict = submit_req(**parse_entry_form(r.data))
+    submit_req_dict['data']['session_token'] = 'a'
+    r = client.post(**submit_req_dict)
+    assert r.status_code == 403 and r.json == 'Incorrect session token'
+
+    r = client.get(
+        **redeem_voucher_for_entry_form(client, collection, client_key))
+    submit_req_dict = submit_req(**parse_entry_form(r.data))
+    r = client.post(**submit_req_dict)
+    assert r.status_code == 200
+
+    r = client.post(**submit_req_dict)
+    assert r.status_code == 400 and r.json == 'Form already submitted'
+
+    r = client.get(
+        **redeem_voucher_for_entry_form(client, collection, client_key))
+    submit_req_dict = submit_req(**parse_entry_form(r.data))
+    submit_req_dict['data']['field_3'] = 'a'
+    r = client.post(**submit_req_dict)
+    assert r.status_code == 200
