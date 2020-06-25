@@ -18,4 +18,5 @@ class StatusResource(Resource):
         elif collection.status == Status.enqueued:
             return 'Enqueued', 202
         else:
+            # TODO return entry count
             return None, 204
