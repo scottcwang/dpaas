@@ -499,3 +499,35 @@ def test_submit(client, collection, client_key):
     submit_req_dict['data']['field_3'] = 'a'
     r = client.post(**submit_req_dict)
     assert r.status_code == 200
+
+def queue_req(collection):
+    return {
+        'path': '/' + collection.id + '/enqueue',
+        'json': {
+            'collection_private_key_secret': collection.private_key_secret
+        }
+    }
+
+
+def test_queue(client, collection):
+    r = client.post('/' + collection.id + '/enqueue', data='a')
+    assert r.status_code == 400 and r.json == 'Request is not JSON'
+
+    r = client.post('/' + collection.id + '/enqueue', json={'a': 'b'})
+    assert r.status_code == 400 and r.json == 'JSON payload does not conform to schema'
+
+    queue_req_dict = queue_req(collection)
+    queue_req_dict['path'] = queue_req_dict['path'].replace(collection.id, 'a')
+    r = client.post(**queue_req_dict)
+    assert r.status_code == 404 and r.json == 'Collection ID not found'
+
+    queue_req_dict = queue_req(collection)
+    queue_req_dict['json']['collection_private_key_secret'] = 'a'
+    r = client.post(**queue_req_dict)
+    assert r.status_code == 400 and r.json == 'Incorrect collection private key secret'
+
+    r = client.post(**queue_req(collection))
+    assert r.status_code == 202
+
+    r = client.post(**queue_req(collection))
+    assert r.status_code == 400 and r.json == 'Already enqueued'
