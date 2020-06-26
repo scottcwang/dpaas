@@ -5,7 +5,7 @@ from resources.Root import RootResource
 from resources.Voucher import VoucherResource
 from resources.Entry import EntryResource
 from resources.Submit import SubmitResource
-from resources.Queue import EnqueueResource
+from resources.Enqueue import EnqueueResource
 from resources.Status import StatusResource
 
 api_bp = Blueprint('api', __name__)
