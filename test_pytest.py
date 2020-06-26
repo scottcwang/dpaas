@@ -30,14 +30,14 @@ def client():
         postgres_pulled = True
     postgres_container = docker_client.containers.run(
         "postgres:latest",
-        ports={"5432/tcp": None},
+        name="postgres",
         detach=True,
         remove=True,
-        environment=["POSTGRES_PASSWORD=password"]
+        environment=["POSTGRES_PASSWORD=password"],
+        network='dpaas_devcontainer_default'
     )
     postgres_container.reload()
-    postgres_port = postgres_container.ports["5432/tcp"][0]["HostPort"]
-    os.environ["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres:password@127.0.0.1:" + postgres_port
+    os.environ["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres:password@postgres:5432"
 
     redis_pulled = False
     try:
@@ -47,13 +47,13 @@ def client():
         redis_pulled = True
     redis_container = docker_client.containers.run(
         "redis:latest",
-        ports={"6379/tcp": None},
+        name="redis",
         detach=True,
-        remove=True
+        remove=True,
+        network='dpaas_devcontainer_default'
     )
     redis_container.reload()
-    redis_port = redis_container.ports["6379/tcp"][0]["HostPort"]
-    os.environ["REDIS_URL"] = "redis://127.0.0.1:" + redis_port
+    os.environ["REDIS_URL"] = "redis://redis:6379"
 
     load_dotenv(dotenv_path='./.flaskenv')
     app = create_app()
