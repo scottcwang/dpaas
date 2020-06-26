@@ -13,7 +13,7 @@ api = Api(api_bp)
 
 api.add_resource(RootResource, '/')
 api.add_resource(VoucherResource, '/<string:collection_id>/voucher')
-api.add_resource(EntryResource, '/<string:collection_id>/entry/<string:voucher>')
+api.add_resource(EntryResource, '/entry/<string:voucher>')
 api.add_resource(SubmitResource, '/submit/<string:entry_serial>')
 api.add_resource(
     EnqueueResource, '/<string:collection_id>/enqueue')

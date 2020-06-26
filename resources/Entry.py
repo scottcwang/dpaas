@@ -12,6 +12,7 @@ import secrets
 import base64
 
 import nacl.signing
+import nacl.bindings
 
 
 def create_form(attributes, session_token):
@@ -31,20 +32,10 @@ def create_form(attributes, session_token):
 
 class EntryResource(Resource):
     # To read voucher from path, must be GET (despite being state-changing)
-    def get(self, collection_id, voucher):
-        collection = Collection.query.get(collection_id)
-        if not collection:
-            return 'Collection ID not found', 404
-        if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
-            return 'Not within collection interval', 410
-        if collection.status is not None:
-            return 'Already enqueued', 400
-        try:
-            verify_key = nacl.signing.VerifyKey(collection.client_verify_key)
-            voucher_contents = verify_key.verify(
-                base64.urlsafe_b64decode(voucher.encode()))
-        except Exception as e:
-            return 'Voucher could not be verified', 400
+    def get(self, voucher):
+        voucher_bytes = base64.urlsafe_b64decode(
+            voucher.encode())
+        voucher_contents = voucher_bytes[nacl.bindings.crypto_sign_BYTES:]
 
         try:
             client_serial, entry_serial, issued_at_str, * \
@@ -64,9 +55,6 @@ class EntryResource(Resource):
         entry = Entry.query.get(entry_serial)
         if not entry:
             return 'Entry does not exist', 404
-        if entry.collection_id != collection.id:
-            # TODO Leaks existence of entry serial
-            return 'Entry serial not for this collection', 400
         if not entry.client_serial:
             return 'Voucher already redeemed for a form', 400
         if entry.client_serial != client_serial:
@@ -74,6 +62,17 @@ class EntryResource(Resource):
 
         if abs(entry.issued_at - issued_at) > datetime.timedelta(seconds=60):
             return 'Voucher not issued and registered at same time', 400
+
+        collection = entry.collection
+        if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
+            return 'Not within collection interval', 410
+        if collection.status is not None:
+            return 'Already enqueued', 400
+        try:
+            verify_key = nacl.signing.VerifyKey(collection.client_verify_key)
+            voucher_contents = verify_key.verify(voucher_bytes)
+        except:
+            return 'Voucher could not be verified', 400
 
         entry.client_serial = None
 
