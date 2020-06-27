@@ -34,7 +34,7 @@ class VoucherResource(Resource):
             return 'Collection ID not found', 404
         if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
             return 'Not within collection interval', 410
-        if collection.status is not None:
+        if collection.status.value >= 0:
             return 'Already enqueued', 400
         try:
             collection_private_key_decrypted = nacl.secret.SecretBox(

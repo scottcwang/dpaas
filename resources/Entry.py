@@ -66,7 +66,7 @@ class EntryResource(Resource):
         collection = entry.collection
         if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
             return 'Not within collection interval', 410
-        if collection.status is not None:
+        if collection.status.value >= 0:
             return 'Already enqueued', 400
         try:
             verify_key = nacl.signing.VerifyKey(collection.client_verify_key)
