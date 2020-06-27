@@ -101,7 +101,7 @@ def client_key():
     )
 
 
-def root_req(client_verify_key_b64, future=False):
+def root_req(client_verify_key_b64):
     return {
         'path': '/',
         'json': {
@@ -115,11 +115,11 @@ def root_req(client_verify_key_b64, future=False):
             'client_verify_key': client_verify_key_b64,
             'response_start_time': (
                 datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(minutes=(60 if future else 0))
+                + datetime.timedelta(minutes=0)
             ).timestamp(),
             'response_end_time': (
                 datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(minutes=(120 if future else 60))
+                + datetime.timedelta(minutes=60)
             ).timestamp()
         }
     }
