@@ -1,6 +1,6 @@
 from flask import request, render_template, make_response
 from flask_restful import Resource
-from marshmallow import Schema, fields, ValidationError
+from marshmallow import Schema, fields
 
 from Model import db, Collection, Entry, Status
 
@@ -45,6 +45,7 @@ def process(collection_id, collection_private_key_decrypted):
     model = getattr(diffprivlib.models, collection.fit_model)(
         **collection.fit_arguments)
     fit = model.fit(X, y)
+    # TODO Handle PrivacyLeakWarning
     # dump pickled fit object into database
     collection.result = pickle.dumps(fit)
     collection.status = Status.complete
@@ -69,13 +70,13 @@ class EnqueueResource(Resource):
             return 'Request is not JSON', 400
         try:
             data = queue_input_schema.load(json_data)
-        except ValidationError as error:
+        except:
             return 'JSON payload does not conform to schema', 400
 
         collection = Collection.query.get(collection_id)
         if not collection:
             return 'Collection ID not found', 404
-        if collection.status is not None:
+        if collection.status.value >= 0:
             return 'Already enqueued', 400
         try:
             collection_private_key_decrypted = nacl.secret.SecretBox(

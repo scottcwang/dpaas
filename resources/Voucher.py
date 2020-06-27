@@ -1,7 +1,7 @@
 from flask import request
 from flask_restful import Resource
 from Model import db, Collection, Entry
-from marshmallow import Schema, fields, ValidationError
+from marshmallow import Schema, fields
 
 import datetime
 import secrets
@@ -26,7 +26,7 @@ class VoucherResource(Resource):
             return 'Request is not JSON', 400
         try:
             data = voucher_input_schema.load(json_data)
-        except ValidationError as error:
+        except:
             return 'JSON payload does not conform to schema', 400
 
         collection = Collection.query.get(collection_id)
