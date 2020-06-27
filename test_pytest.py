@@ -132,8 +132,7 @@ Collection = namedtuple('Collection', [
 ])
 
 
-@pytest.fixture(scope='session')
-def collection(client, client_key):
+def create_collection(client, client_key):
     r = client.post(**root_req(client_key.verify_key_b64))
     return Collection(**r.json)
 
@@ -225,7 +224,9 @@ def test_root(client, client_key):
     assert r.status_code == 201  # TODO validate schema of response JSON
 
 
-def test_voucher(client, collection, client_key):
+def test_voucher(client, client_key):
+    collection = create_collection(client, client_key)
+
     r = client.post('/' + collection.id + '/voucher', data='a')
     assert r.status_code == 400 and r.json == 'Request is not JSON'
 
@@ -285,7 +286,9 @@ def test_voucher(client, collection, client_key):
     assert r.status_code == 400 and r.json == 'Client serial already used'
 
 
-def test_entry(client, collection, client_key):
+def test_entry(client, client_key):
+    collection = create_collection(client, client_key)
+
     voucher_bytes = ','.join([
         'a',
         'a'
@@ -418,7 +421,9 @@ def parse_entry_form(data):
     }
 
 
-def test_submit(client, collection, client_key):
+def test_submit(client, client_key):
+    collection = create_collection(client, client_key)
+
     r = client.get(
         **redeem_voucher_for_entry_form(client, collection, client_key))
     parse_entry_form_dict = parse_entry_form(r.data)
@@ -499,7 +504,9 @@ def queue_req(collection):
     }
 
 
-def test_queue(client, collection):
+def test_queue(client, client_key):
+    collection = create_collection(client, client_key)
+
     r = client.post('/' + collection.id + '/enqueue', data='a')
     assert r.status_code == 400 and r.json == 'Request is not JSON'
 
