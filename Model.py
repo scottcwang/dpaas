@@ -12,6 +12,7 @@ db = SQLAlchemy()
 
 
 class Status(Enum):
+    active = -1
     enqueued = 0
     running = 1
     complete = 2
@@ -49,6 +50,7 @@ class Collection(db.Model):
         self.client_verify_key = client_verify_key
         self.collection_private_key = collection_private_key
         self.collection_public_key = collection_public_key
+        self.status = Status.active
 
 
 class Entry(db.Model):

@@ -25,7 +25,7 @@ class SubmitResource(Resource):
 
         if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
             return 'Not within collection interval', 410
-        if collection.status is not None:
+        if collection.status.value >= 0:
             return 'Already enqueued', 400
 
         if entry.session_token != form.session_token.data:

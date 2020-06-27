@@ -1,7 +1,7 @@
 from flask import request
 from flask_restful import Resource
 from flask_redis import FlaskRedis
-from marshmallow import Schema, fields, ValidationError
+from marshmallow import Schema, fields
 
 from Model import *
 
@@ -37,7 +37,7 @@ class RootResource(Resource):
             return 'Request is not JSON', 400
         try:
             data = root_input_schema.load(json_data)
-        except ValidationError as error:
+        except:
             return 'JSON payload does not conform to schema', 400
 
         # TODO validate public key online
