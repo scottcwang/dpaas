@@ -6,6 +6,7 @@ import shutil
 import time
 from collections import namedtuple
 import secrets
+import pickle
 
 import nacl.signing
 import pytest
@@ -111,7 +112,7 @@ def root_req(client_verify_key_b64):
             'fit_model': 'LinearRegression',
             'attribute_y_index': 1,
             'fit_arguments': {
-                'epsilon': 1
+                'epsilon': float('inf')
             },
             'description': '# Title\nParagraph',
             'client_verify_key': client_verify_key_b64,
@@ -640,3 +641,6 @@ def test_status(client, client_key, queue_worker):
         'model': status_resp_dict
     }
 
+    pickle_bytes = base64.urlsafe_b64decode(r.json['result'])
+    unpickled_model = pickle.loads(pickle_bytes)
+    assert unpickled_model.predict([[5]]) == pytest.approx(6)
