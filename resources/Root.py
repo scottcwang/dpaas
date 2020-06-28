@@ -44,7 +44,7 @@ class RootResource(Resource):
         try:
             client_verify_key = nacl.signing.VerifyKey(
                 data['client_verify_key'], nacl.encoding.URLSafeBase64Encoder)
-        except Exception as e:
+        except:
             return 'Public key could not be parsed', 400
         # TODO Challenge ownership of public key
 

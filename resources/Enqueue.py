@@ -45,6 +45,7 @@ def process(collection_id, collection_private_key_decrypted):
     model = getattr(diffprivlib.models, collection.fit_model)(
         **collection.fit_arguments)
     fit = model.fit(X, y)
+    # TODO Handle timeout
     # TODO Handle PrivacyLeakWarning
     # dump pickled fit object into database
     collection.result = pickle.dumps(fit)
