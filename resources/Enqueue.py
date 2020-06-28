@@ -18,6 +18,7 @@ q = Queue(connection=redis_conn)
 
 
 def process(collection_id, collection_private_key_decrypted):
+    # TODO Handle exceptions
     collection = Collection.query.get(collection_id)
     if not collection:
         return
@@ -29,7 +30,7 @@ def process(collection_id, collection_private_key_decrypted):
     sealed_box = nacl.public.SealedBox(
         nacl.public.PrivateKey(collection_private_key_decrypted))
     entries = Entry.query.filter(
-        Entry.collection_id == collection.id, Entry.values is not None).all()
+        Entry.collection_id == collection.id, Entry.values != None).all()
     entries_decrypt = [sealed_box.decrypt(entry.values) for entry in entries]
     entries_decode = [bytes.decode(entry_decrypt).split(
         ',') for entry_decrypt in entries_decrypt]
@@ -44,10 +45,11 @@ def process(collection_id, collection_private_key_decrypted):
 
     model = getattr(diffprivlib.models, collection.fit_model)(
         **collection.fit_arguments)
-    fit = model.fit(X, y)
+    model.fit(X, y)
+    # TODO Handle timeout
     # TODO Handle PrivacyLeakWarning
     # dump pickled fit object into database
-    collection.result = pickle.dumps(fit)
+    collection.result = pickle.dumps(model)
     collection.status = Status.complete
     db.session.add(collection)
     # Delete all entries

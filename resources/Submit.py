@@ -42,5 +42,9 @@ class SubmitResource(Resource):
         values_json_encrypt = values_json_box.encrypt(values_json_bytes)
         entry.values = values_json_encrypt
         db.session.add(entry)
+
+        collection.submit_count = collection.submit_count + 1
+        db.session.add(collection)
+
         db.session.commit()
         return None

@@ -36,6 +36,7 @@ class Collection(db.Model):
     collection_public_key = db.Column(db.LargeBinary(), nullable=False)
 
     result = db.Column(db.PickleType)
+    submit_count = db.Column(db.Integer)
     status = db.Column(db.Enum(Status))
 
     def __init__(self, attributes, attribute_y_index, fit_model, fit_arguments, description, response_start_time, response_end_time, client_verify_key, collection_private_key, collection_public_key):
@@ -50,6 +51,7 @@ class Collection(db.Model):
         self.client_verify_key = client_verify_key
         self.collection_private_key = collection_private_key
         self.collection_public_key = collection_public_key
+        self.submit_count = 0
         self.status = Status.active
 
 
