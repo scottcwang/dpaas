@@ -42,7 +42,7 @@ class StatusResource(Resource):
 
         return_dict = {
             'status': collection.status.name,
-            'response_count': Entry.query.filter(Entry.collection_id == collection_id, Entry.values is not None).count(),
+            'response_count': collection.submit_count,
             'model': {
                 'attributes': collection.attributes,
                 'attribute_y_index': collection.attribute_y_index,
