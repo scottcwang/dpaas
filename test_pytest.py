@@ -528,3 +528,78 @@ def test_queue(client, client_key):
 
     r = client.post(**queue_req(collection))
     assert r.status_code == 400 and r.json == 'Already enqueued'
+
+def status_req(collection):
+    return {
+        'path': '/' + collection.id + '/status',
+        'json': {
+            'collection_private_key_secret': collection.private_key_secret
+        }
+    }
+
+
+def test_status(client, client_key, queue_worker):
+    root_req_dict = root_req(client_key.verify_key_b64)
+    r = client.post(**root_req_dict)
+    collection = Collection(**r.json)
+
+    status_resp_dict = {
+        k: root_req_dict['json'][k]
+        for k in ['attributes',
+                  'attribute_y_index',
+                  'fit_model',
+                  'fit_arguments',
+                  'description',
+                  'response_start_time',
+                  'response_end_time']
+    }
+
+    status_req_dict = status_req(collection)
+    status_req_dict['path'] = status_req_dict['path'].replace(
+        collection.id, 'a')
+    r = client.post(**status_req_dict)
+    assert r.status_code == 404 and r.json == 'Collection ID not found'
+
+    r = client.post('/' + collection.id + '/status', data='a')
+    assert r.status_code == 400 and r.json == 'Request is not JSON'
+
+    r = client.post('/' + collection.id + '/status', json={'a': 'b'})
+    assert r.status_code == 400 and r.json == 'JSON payload does not conform to schema'
+
+    status_req_dict = status_req(collection)
+    status_req_dict['path'] = status_req_dict['path'].replace(
+        collection.id, 'a')
+    r = client.post(**status_req_dict)
+    assert r.status_code == 404 and r.json == 'Collection ID not found'
+
+    status_req_dict = status_req(collection)
+    status_req_dict['json']['collection_private_key_secret'] = 'a'
+    r = client.post(**status_req_dict)
+    assert r.status_code == 400 and r.json == 'Incorrect collection private key secret'
+
+    r = client.post(**status_req(collection))
+    assert r.status_code == 200 and r.json == {
+        'status': 'active',
+        'response_count': 0,
+        'model': status_resp_dict
+    }
+
+    r = client.get(
+        **redeem_voucher_for_entry_form(client, collection, client_key))
+    r = client.post(**submit_req(**parse_entry_form(r.data)))
+    r = client.post(**status_req(collection))
+    assert r.status_code == 200 and r.json == {
+        'status': 'active',
+        'response_count': 1,
+        'model': status_resp_dict
+    }
+
+
+    r = client.post(**queue_req(collection))
+    r = client.post(**status_req(collection))
+    assert r.status_code == 200 and r.json == {
+        'status': 'enqueued',
+        'response_count': 1,
+        'model': status_resp_dict
+    }
+
