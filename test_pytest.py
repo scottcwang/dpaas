@@ -13,9 +13,11 @@ import docker
 from dotenv import load_dotenv
 import flask_migrate
 from bs4 import BeautifulSoup
+from rq import SimpleWorker
 
 from run import create_app
 from Model import db
+from resources.Enqueue import q
 
 
 @pytest.fixture(scope='session')
@@ -105,9 +107,9 @@ def root_req(client_verify_key_b64):
     return {
         'path': '/',
         'json': {
-            'attributes': ['attr0', 'attr1', 'attr2'],
-            'fit_model': 'PCA',
-            'attribute_y_index': 2,
+            'attributes': ['attr0', 'attr1'],
+            'fit_model': 'LinearRegression',
+            'attribute_y_index': 1,
             'fit_arguments': {
                 'epsilon': 1
             },
@@ -168,15 +170,14 @@ def entry_req(collection, client_serial, entry_serial, client_key):
     }
 
 
-def submit_req(entry_serial, csrf_token_form, session_token):
+def submit_req(entry_serial, csrf_token_form, session_token, attr0, attr1):
     return {
         'path': '/submit/' + entry_serial,
         'data': {
             'csrf_token': csrf_token_form,
             'session_token': session_token,
-            'field_0': 0,
-            'field_1': 1,
-            'field_2': 2
+            'field_0': attr0,
+            'field_1': attr1
         }
     }
 
@@ -428,19 +429,19 @@ def test_submit(client, client_key):
         **redeem_voucher_for_entry_form(client, collection, client_key))
     parse_entry_form_dict = parse_entry_form(r.data)
     parse_entry_form_dict['entry_serial'] = 'a'
-    r = client.post(**submit_req(**parse_entry_form_dict))
+    r = client.post(**submit_req(attr0=0, attr1=1, **parse_entry_form_dict))
     assert r.status_code == 404 and r.json == 'Entry does not exist'
 
     r = client.get(
         **redeem_voucher_for_entry_form(client, collection, client_key))
-    submit_req_dict = submit_req(**parse_entry_form(r.data))
+    submit_req_dict = submit_req(attr0=0, attr1=1, **parse_entry_form(r.data))
     submit_req_dict['data']['csrf_token'] = 'a'
     r = client.post(**submit_req_dict)
     assert r.status_code == 400 and r.json == 'Form data does not conform to schema, or CSRF token does not match'
 
     r = client.get(
         **redeem_voucher_for_entry_form(client, collection, client_key))
-    submit_req_dict = submit_req(**parse_entry_form(r.data))
+    submit_req_dict = submit_req(attr0=0, attr1=1, **parse_entry_form(r.data))
     del submit_req_dict['data']['field_0']
     r = client.post(**submit_req_dict)
     assert r.status_code == 400 and r.json == 'Form data does not conform to schema, or CSRF token does not match'
@@ -457,7 +458,7 @@ def test_submit(client, client_key):
     r = client.get(
         **redeem_voucher_for_entry_form(client, past_collection, client_key))
     time.sleep(20)
-    r = client.post(**submit_req(**parse_entry_form(r.data)))
+    r = client.post(**submit_req(attr0=0, attr1=1, **parse_entry_form(r.data)))
     assert r.status_code == 410 and r.json == 'Not within collection interval'
 
     r = client.post(**root_req(client_key.verify_key_b64))
@@ -468,19 +469,19 @@ def test_submit(client, client_key):
                                'a', entry_serial, client_key))
     data = r.data
     r = client.post(**enqueue_req(enqueued_collection, client_key))
-    r = client.post(**submit_req(**parse_entry_form(data)))
+    r = client.post(**submit_req(attr0=0, attr1=1, **parse_entry_form(data)))
     assert r.status_code == 400 and r.json == 'Already enqueued'
 
     r = client.get(
         **redeem_voucher_for_entry_form(client, collection, client_key))
-    submit_req_dict = submit_req(**parse_entry_form(r.data))
+    submit_req_dict = submit_req(attr0=0, attr1=1, **parse_entry_form(r.data))
     submit_req_dict['data']['session_token'] = 'a'
     r = client.post(**submit_req_dict)
     assert r.status_code == 403 and r.json == 'Incorrect session token'
 
     r = client.get(
         **redeem_voucher_for_entry_form(client, collection, client_key))
-    submit_req_dict = submit_req(**parse_entry_form(r.data))
+    submit_req_dict = submit_req(attr0=0, attr1=1, **parse_entry_form(r.data))
     r = client.post(**submit_req_dict)
     assert r.status_code == 200
 
@@ -489,7 +490,7 @@ def test_submit(client, client_key):
 
     r = client.get(
         **redeem_voucher_for_entry_form(client, collection, client_key))
-    submit_req_dict = submit_req(**parse_entry_form(r.data))
+    submit_req_dict = submit_req(attr0=0, attr1=1, **parse_entry_form(r.data))
     submit_req_dict['data']['field_3'] = 'a'
     r = client.post(**submit_req_dict)
     assert r.status_code == 200
@@ -528,6 +529,12 @@ def test_queue(client, client_key):
 
     r = client.post(**queue_req(collection))
     assert r.status_code == 400 and r.json == 'Already enqueued'
+
+
+@pytest.fixture(scope='session')
+def queue_worker():
+    return SimpleWorker([q], connection=q.connection)
+
 
 def status_req(collection):
     return {
@@ -584,22 +591,52 @@ def test_status(client, client_key, queue_worker):
         'model': status_resp_dict
     }
 
+    num_entries = 100
+
+    for i in range(num_entries):
+        r = client.get(
+            **redeem_voucher_for_entry_form(client, collection, client_key))
+        r = client.post(**submit_req(attr0=i, attr1=i+1,
+                                     **parse_entry_form(r.data)))
+        r = client.post(**status_req(collection))
+        assert r.status_code == 200 and r.json == {
+            'status': 'active',
+            'response_count': i+1,
+            'model': status_resp_dict
+        }
+
     r = client.get(
         **redeem_voucher_for_entry_form(client, collection, client_key))
-    r = client.post(**submit_req(**parse_entry_form(r.data)))
     r = client.post(**status_req(collection))
     assert r.status_code == 200 and r.json == {
         'status': 'active',
-        'response_count': 1,
+        'response_count': num_entries,
         'model': status_resp_dict
     }
-
 
     r = client.post(**queue_req(collection))
     r = client.post(**status_req(collection))
     assert r.status_code == 200 and r.json == {
         'status': 'enqueued',
-        'response_count': 1,
+        'response_count': num_entries,
+        'model': status_resp_dict
+    }
+
+    queue_worker.work(burst=True)
+
+    while True:
+        r = client.post(**status_req(collection))
+        if r.json['status'] == 'complete':
+            break
+        assert r.status_code == 200 and r.json == {
+            'status': 'running',
+            'response_count': num_entries,
+            'model': status_resp_dict
+        }
+
+    assert r.status_code == 200 and {k: r.json[k] for k in ['status', 'response_count', 'model']} == {
+        'status': 'complete',
+        'response_count': num_entries,
         'model': status_resp_dict
     }
 
