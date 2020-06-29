@@ -1,19 +1,17 @@
-from flask import render_template, make_response
-from flask_restful import Resource
-
-from Model import db, Collection, Entry
-
-from flask_wtf import FlaskForm
-from wtforms import FloatField, FieldList, HiddenField
-from wtforms.validators import InputRequired
-
 import datetime
 import secrets
 import base64
 
+from flask import render_template, make_response
+from flask_restful import Resource
+from flask_wtf import FlaskForm
+from wtforms import FloatField, HiddenField
+from wtforms.validators import InputRequired
+
 import nacl.signing
 import nacl.bindings
 
+from Model import db, Entry
 
 def create_form(attributes, session_token):
     class SubEntryForm(FlaskForm):

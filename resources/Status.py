@@ -1,15 +1,14 @@
-from flask import request, render_template, make_response
+import base64
+
+from flask import request
 from flask_restful import Resource
 from marshmallow import Schema, fields
-
-from Model import db, Collection, Status, Entry
-
-import pickle
-import base64
 
 import nacl.public
 import nacl.secret
 import nacl.signing
+
+from Model import Collection, Status
 
 
 class StatusInputSchema(Schema):

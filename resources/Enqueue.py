@@ -1,18 +1,17 @@
-from flask import request, render_template, make_response
+import pickle
+
+from flask import request
 from flask_restful import Resource
 from marshmallow import Schema, fields
-
-from Model import db, Collection, Entry, Status
-
-from resources.Root import redis_conn
 
 import nacl.public
 import nacl.secret
 from rq import Queue
-
 import diffprivlib.models
 
-import pickle
+
+from Model import db, Collection, Entry, Status
+from resources.Root import redis_conn
 
 q = Queue(connection=redis_conn)
 

@@ -1,16 +1,18 @@
+import base64
+import secrets
+import datetime
+
 from flask import request
 from flask_restful import Resource
 from flask_redis import FlaskRedis
 from marshmallow import Schema, fields
-
-from Model import *
 
 import nacl.signing
 import nacl.encoding
 import nacl.public
 import nacl.secret
 
-import base64
+from Model import Collection, db
 
 redis_conn = FlaskRedis()
 

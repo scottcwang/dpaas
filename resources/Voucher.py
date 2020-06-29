@@ -1,14 +1,13 @@
+import datetime
+
 from flask import request
 from flask_restful import Resource
-from Model import db, Collection, Entry
 from marshmallow import Schema, fields
-
-import datetime
-import secrets
-import base64
 
 import nacl.public
 import nacl.signing
+
+from Model import db, Collection, Entry
 
 
 class VoucherInputSchema(Schema):
