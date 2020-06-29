@@ -5,7 +5,6 @@ import binascii
 
 from flask import request
 from flask_restful import Resource
-from flask_redis import FlaskRedis
 from marshmallow import Schema, fields, ValidationError
 
 import nacl.signing
@@ -15,8 +14,6 @@ import nacl.secret
 import nacl.exceptions
 
 from Model import Collection, db
-
-redis_conn = FlaskRedis()
 
 
 class RootInputSchema(Schema):

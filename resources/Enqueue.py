@@ -3,6 +3,7 @@ import binascii
 
 from flask import request
 from flask_restful import Resource
+from flask_redis import FlaskRedis
 from marshmallow import Schema, fields, ValidationError
 from rq import Queue
 import diffprivlib.models
@@ -12,8 +13,8 @@ import nacl.secret
 import nacl.exceptions
 
 from Model import db, Collection, Entry, Status
-from resources.Root import redis_conn
 
+redis_conn = FlaskRedis()
 q = Queue(connection=redis_conn)
 
 
