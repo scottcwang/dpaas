@@ -1,16 +1,18 @@
 import base64
 import secrets
 import datetime
+import binascii
 
 from flask import request
 from flask_restful import Resource
 from flask_redis import FlaskRedis
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, ValidationError
 
 import nacl.signing
 import nacl.encoding
 import nacl.public
 import nacl.secret
+import nacl.exceptions
 
 from Model import Collection, db
 
@@ -39,14 +41,14 @@ class RootResource(Resource):
             return 'Request is not JSON', 400
         try:
             data = root_input_schema.load(json_data)
-        except:
+        except ValidationError:
             return 'JSON payload does not conform to schema', 400
 
         # TODO validate public key online
         try:
             client_verify_key = nacl.signing.VerifyKey(
                 data['client_verify_key'], nacl.encoding.URLSafeBase64Encoder)
-        except:
+        except (nacl.exceptions.CryptoError, binascii.Error):
             return 'Public key could not be parsed', 400
 
         # TODO refactor out

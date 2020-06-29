@@ -1,14 +1,15 @@
 import pickle
+import binascii
 
 from flask import request
 from flask_restful import Resource
-from marshmallow import Schema, fields
-
-import nacl.public
-import nacl.secret
+from marshmallow import Schema, fields, ValidationError
 from rq import Queue
 import diffprivlib.models
 
+import nacl.public
+import nacl.secret
+import nacl.exceptions
 
 from Model import db, Collection, Entry, Status
 from resources.Root import redis_conn
@@ -71,7 +72,7 @@ class EnqueueResource(Resource):
             return 'Request is not JSON', 400
         try:
             data = queue_input_schema.load(json_data)
-        except:
+        except ValidationError:
             return 'JSON payload does not conform to schema', 400
 
         collection = Collection.query.get(collection_id)
@@ -84,7 +85,7 @@ class EnqueueResource(Resource):
                 data['collection_private_key_secret'],
                 encoder=nacl.encoding.URLSafeBase64Encoder
             ).decrypt(collection.collection_private_key)
-        except:
+        except (nacl.exceptions.CryptoError, binascii.Error):
             return 'Incorrect collection private key secret', 400
 
         collection.status = Status.enqueued

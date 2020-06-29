@@ -1,12 +1,14 @@
 import base64
+import binascii
 
 from flask import request
 from flask_restful import Resource
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, ValidationError
 
 import nacl.public
 import nacl.secret
 import nacl.signing
+import nacl.exceptions
 
 from Model import Collection, Status
 
@@ -25,7 +27,7 @@ class StatusResource(Resource):
             return 'Request is not JSON', 400
         try:
             data = status_input_schema.load(json_data)
-        except:
+        except ValidationError:
             return 'JSON payload does not conform to schema', 400
 
         collection = Collection.query.get(collection_id)
@@ -37,7 +39,7 @@ class StatusResource(Resource):
                 data['collection_private_key_secret'],
                 encoder=nacl.encoding.URLSafeBase64Encoder
             ).decrypt(collection.collection_private_key)
-        except:
+        except (nacl.exceptions.CryptoError, binascii.Error):
             return 'Incorrect collection private key secret', 400
 
         return_dict = {

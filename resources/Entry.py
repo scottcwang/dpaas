@@ -10,6 +10,7 @@ from wtforms.validators import InputRequired
 
 import nacl.signing
 import nacl.bindings
+import nacl.exceptions
 
 from Model import db, Entry
 
@@ -39,7 +40,7 @@ class EntryResource(Resource):
         try:
             client_serial, entry_serial, issued_at_str, * \
                 tail = voucher_contents.decode().split(',')
-        except:
+        except ValueError:
             return 'Voucher contains fewer than three values', 400
 
         if len(tail) > 0:
@@ -48,7 +49,7 @@ class EntryResource(Resource):
         try:
             issued_at = datetime.datetime.fromtimestamp(
                 float(issued_at_str), datetime.timezone.utc)
-        except:
+        except (ValueError, OverflowError, OSError):
             return 'Timestamp invalid', 400
 
         entry = Entry.query.get(entry_serial)
@@ -71,7 +72,7 @@ class EntryResource(Resource):
         try:
             verify_key = nacl.signing.VerifyKey(collection.client_verify_key)
             voucher_contents = verify_key.verify(voucher_bytes)
-        except:
+        except nacl.exceptions.CryptoError:
             return 'Voucher could not be verified', 400
 
         entry.client_serial = None

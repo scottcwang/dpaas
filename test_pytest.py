@@ -29,7 +29,7 @@ def client():
     postgres_pulled = False
     try:
         docker_client.images.get("postgres:latest")
-    except:
+    except docker.errors.ImageNotFound:
         docker_client.images.pull("postgres:latest")
         postgres_pulled = True
     postgres_container = docker_client.containers.run(
@@ -46,7 +46,7 @@ def client():
     redis_pulled = False
     try:
         docker_client.images.get("redis:latest")
-    except:
+    except docker.errors.ImageNotFound:
         docker_client.images.pull("redis:latest")
         redis_pulled = True
     redis_container = docker_client.containers.run(
