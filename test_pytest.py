@@ -67,7 +67,7 @@ def client():
 
     migrate_dir = tempfile.mkdtemp()
 
-    migrate = flask_migrate.Migrate(app, db)
+    flask_migrate.Migrate(app, db)
 
     with app.app_context():
         flask_migrate.init(directory=migrate_dir)
@@ -75,8 +75,6 @@ def client():
         flask_migrate.upgrade(directory=migrate_dir)
 
     shutil.rmtree(migrate_dir)
-
-    c = app.test_client()
 
     with app.test_client() as client:
         yield client
