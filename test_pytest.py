@@ -76,8 +76,8 @@ def client():
 
     shutil.rmtree(migrate_dir)
 
-    with app.test_client() as client:
-        yield client
+    with app.test_client() as test_client:
+        yield test_client
 
     postgres_container.stop()
     if postgres_pulled:
@@ -134,10 +134,10 @@ Collection = namedtuple('Collection', [
 ])
 
 
-def decrypt_collection(resp_json, client_key):
+def decrypt_collection(resp_json, client_key_fixture):
     collection_public_key = nacl.public.PublicKey(
         base64.urlsafe_b64decode(resp_json['public_key_b64']))
-    client_private_key = client_key.signing_key.to_curve25519_private_key()
+    client_private_key = client_key_fixture.signing_key.to_curve25519_private_key()
     client_private_key_box = nacl.public.Box(
         client_private_key, collection_public_key)
 
@@ -149,17 +149,17 @@ def decrypt_collection(resp_json, client_key):
     return Collection(resp_json['id'], resp_json['public_key_b64'], private_key_secret_b64)
 
 
-def create_collection(client, client_key):
-    r = client.post(**root_req(client_key.verify_key_b64))
-    return decrypt_collection(r.json, client_key)
+def create_collection(client_fixture, client_key_fixture):
+    r = client_fixture.post(**root_req(client_key_fixture.verify_key_b64))
+    return decrypt_collection(r.json, client_key_fixture)
 
 
-def voucher_req(collection, client_serial, client_key):
+def voucher_req(collection, client_serial, client_key_fixture):
     collection_public_key = nacl.public.PublicKey(
         base64.urlsafe_b64decode(collection.public_key_b64))
 
     client_serial_encrypt = nacl.public.Box(
-        client_key.signing_key.to_curve25519_private_key(),
+        client_key_fixture.signing_key.to_curve25519_private_key(),
         collection_public_key
     ).encrypt(client_serial.encode())
 
@@ -172,13 +172,13 @@ def voucher_req(collection, client_serial, client_key):
     }
 
 
-def entry_req(client_serial, entry_serial, client_key):
+def entry_req(client_serial, entry_serial, client_key_fixture):
     voucher_bytes = ','.join([
         client_serial,
         entry_serial,
         str(datetime.datetime.now(datetime.timezone.utc).timestamp())
     ]).encode()
-    voucher_sign = client_key.signing_key.sign(voucher_bytes)
+    voucher_sign = client_key_fixture.signing_key.sign(voucher_bytes)
     voucher_b64 = base64.urlsafe_b64encode(voucher_sign).decode()
     return {
         'path': '/entry/' + voucher_b64
@@ -197,14 +197,14 @@ def submit_req(entry_serial, csrf_token_form, session_token, attr0, attr1):
     }
 
 
-def redeem_voucher_for_entry_form(client, collection, client_key):
+def redeem_voucher_for_entry_form(client_fixture, collection, client_key_fixture):
     client_serial = secrets.token_urlsafe(16)
-    r = client.post(
-        **voucher_req(collection, client_serial, client_key)
+    r = client_fixture.post(
+        **voucher_req(collection, client_serial, client_key_fixture)
     )
     entry_serial = r.json['entry_serial']
 
-    return entry_req(client_serial, entry_serial, client_key)
+    return entry_req(client_serial, entry_serial, client_key_fixture)
 
 
 def enqueue_req(collection):
