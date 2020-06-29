@@ -657,6 +657,13 @@ def test_status(client, client_key, queue_worker):
         'model': status_resp_dict
     }
 
-    pickle_bytes = base64.urlsafe_b64decode(r.json['result'])
+    collection_public_key = nacl.public.PublicKey(
+        base64.urlsafe_b64decode(collection.public_key_b64))
+    client_private_key = client_key.signing_key.to_curve25519_private_key()
+    client_private_key_box = nacl.public.Box(
+        client_private_key, collection_public_key)
+
+    pickle_bytes = client_private_key_box.decrypt(
+        base64.urlsafe_b64decode(r.json['result']))
     unpickled_model = pickle.loads(pickle_bytes)
     assert unpickled_model.predict([[5]]) == pytest.approx(6)

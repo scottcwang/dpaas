@@ -9,6 +9,7 @@ import base64
 
 import nacl.public
 import nacl.secret
+import nacl.signing
 
 
 class StatusInputSchema(Schema):
@@ -33,7 +34,7 @@ class StatusResource(Resource):
             return 'Collection ID not found', 404
 
         try:
-            nacl.secret.SecretBox(
+            collection_private_key_decrypted = nacl.secret.SecretBox(
                 data['collection_private_key_secret'],
                 encoder=nacl.encoding.URLSafeBase64Encoder
             ).decrypt(collection.collection_private_key)
@@ -55,9 +56,18 @@ class StatusResource(Resource):
         }
 
         if collection.status == Status.complete:
-            # TODO Encrypt with client public key
+            client_public_key = nacl.signing.VerifyKey(
+                collection.client_verify_key).to_curve25519_public_key()
+            collection_private_key = nacl.public.PrivateKey(
+                collection_private_key_decrypted)
+            collection_private_key_box = nacl.public.Box(
+                collection_private_key, client_public_key)
+
+            collection_result_encrypted = collection_private_key_box.encrypt(
+                collection.result)
+
             return_dict['result'] = base64.urlsafe_b64encode(
-                collection.result).decode()
+                collection_result_encrypted).decode()
             # TODO when is the collection deleted?
 
         return return_dict, 200
