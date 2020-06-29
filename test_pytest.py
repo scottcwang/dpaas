@@ -172,7 +172,7 @@ def voucher_req(collection, client_serial, client_key):
     }
 
 
-def entry_req(collection, client_serial, entry_serial, client_key):
+def entry_req(client_serial, entry_serial, client_key):
     voucher_bytes = ','.join([
         client_serial,
         entry_serial,
@@ -204,10 +204,10 @@ def redeem_voucher_for_entry_form(client, collection, client_key):
     )
     entry_serial = r.json['entry_serial']
 
-    return entry_req(collection, client_serial, entry_serial, client_key)
+    return entry_req(client_serial, entry_serial, client_key)
 
 
-def enqueue_req(collection, client_key):
+def enqueue_req(collection):
     return {
         'path': '/' + collection.id + '/enqueue',
         'json': {
@@ -283,7 +283,7 @@ def test_voucher(client, client_key):
 
     r = client.post(**root_req(client_key.verify_key_b64))
     enqueued_collection = decrypt_collection(r.json, client_key)
-    r = client.post(**enqueue_req(enqueued_collection, client_key))
+    r = client.post(**enqueue_req(enqueued_collection))
     r = client.post(**voucher_req(enqueued_collection, 'a', client_key))
     assert r.status_code == 400 and r.json == 'Already enqueued'
 
@@ -385,16 +385,15 @@ def test_entry(client, client_key):
     r = client.post(**voucher_req(past_collection, 'a', client_key))
     entry_serial = r.json['entry_serial']
     time.sleep(20)
-    r = client.get(**entry_req(past_collection, 'a', entry_serial, client_key))
+    r = client.get(**entry_req('a', entry_serial, client_key))
     assert r.status_code == 410 and r.json == 'Not within collection interval'
 
     r = client.post(**root_req(client_key.verify_key_b64))
     enqueued_collection = decrypt_collection(r.json, client_key)
     r = client.post(**voucher_req(enqueued_collection, 'a', client_key))
     entry_serial = r.json['entry_serial']
-    r = client.post(**enqueue_req(enqueued_collection, client_key))
-    r = client.get(**entry_req(enqueued_collection,
-                               'a', entry_serial, client_key))
+    r = client.post(**enqueue_req(enqueued_collection))
+    r = client.get(**entry_req('a', entry_serial, client_key))
     assert r.status_code == 400 and r.json == 'Already enqueued'
 
     client_serial = secrets.token_urlsafe(16)
@@ -482,10 +481,9 @@ def test_submit(client, client_key):
     enqueued_collection = decrypt_collection(r.json, client_key)
     r = client.post(**voucher_req(enqueued_collection, 'a', client_key))
     entry_serial = r.json['entry_serial']
-    r = client.get(**entry_req(enqueued_collection,
-                               'a', entry_serial, client_key))
+    r = client.get(**entry_req('a', entry_serial, client_key))
     data = r.data
-    r = client.post(**enqueue_req(enqueued_collection, client_key))
+    r = client.post(**enqueue_req(enqueued_collection))
     r = client.post(**submit_req(attr0=0, attr1=1, **parse_entry_form(data)))
     assert r.status_code == 400 and r.json == 'Already enqueued'
 
