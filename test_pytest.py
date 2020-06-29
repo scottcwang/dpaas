@@ -452,14 +452,16 @@ def test_submit(client, client_key):
     submit_req_dict = submit_req(attr0=0, attr1=1, **parse_entry_form(r.data))
     submit_req_dict['data']['csrf_token'] = 'a'
     r = client.post(**submit_req_dict)
-    assert r.status_code == 400 and r.json == 'Form data does not conform to schema, or CSRF token does not match'
+    assert r.status_code == 400 \
+        and r.json == 'Form data does not conform to schema, or CSRF token does not match'
 
     r = client.get(
         **redeem_voucher_for_entry_form(client, collection, client_key))
     submit_req_dict = submit_req(attr0=0, attr1=1, **parse_entry_form(r.data))
     del submit_req_dict['data']['field_0']
     r = client.post(**submit_req_dict)
-    assert r.status_code == 400 and r.json == 'Form data does not conform to schema, or CSRF token does not match'
+    assert r.status_code == 400 \
+        and r.json == 'Form data does not conform to schema, or CSRF token does not match'
 
     root_req_dict = root_req(client_key.verify_key_b64)
     root_req_dict['json']['response_end_time'] = (
@@ -649,11 +651,12 @@ def test_status(client, client_key, queue_worker):
             'model': status_resp_dict
         }
 
-    assert r.status_code == 200 and {k: r.json[k] for k in ['status', 'response_count', 'model']} == {
-        'status': 'complete',
-        'response_count': num_entries,
-        'model': status_resp_dict
-    }
+    assert r.status_code == 200 \
+        and {k: r.json[k] for k in ['status', 'response_count', 'model']} == {
+            'status': 'complete',
+            'response_count': num_entries,
+            'model': status_resp_dict
+        }
 
     collection_public_key = nacl.public.PublicKey(
         base64.urlsafe_b64decode(collection.public_key_b64))

@@ -13,6 +13,7 @@ import nacl.bindings
 
 from Model import db, Entry
 
+
 def create_form(attributes, session_token):
     class SubEntryForm(FlaskForm):
         pass
@@ -62,7 +63,8 @@ class EntryResource(Resource):
             return 'Voucher not issued and registered at same time', 400
 
         collection = entry.collection
-        if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
+        if (datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time
+                or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time):
             return 'Not within collection interval', 410
         if collection.status.value >= 0:
             return 'Already enqueued', 400
@@ -82,4 +84,10 @@ class EntryResource(Resource):
 
         headers = {'Content-Type': 'text/html'}
         form_class = create_form(attributes, entry.session_token)
-        return make_response(render_template('entry.html', form=form_class(), attributes=attributes, collection=collection, entry_serial=entry_serial), 200, headers)
+        return make_response(render_template(
+            'entry.html',
+            form=form_class(),
+            attributes=attributes,
+            collection=collection,
+            entry_serial=entry_serial
+        ), 200, headers)

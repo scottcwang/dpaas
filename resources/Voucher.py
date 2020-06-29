@@ -31,7 +31,8 @@ class VoucherResource(Resource):
         collection = Collection.query.get(collection_id)
         if not collection:
             return 'Collection ID not found', 404
-        if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
+        if (datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time
+                or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time):
             return 'Not within collection interval', 410
         if collection.status.value >= 0:
             return 'Already enqueued', 400
@@ -54,7 +55,10 @@ class VoucherResource(Resource):
             encoder=nacl.encoding.URLSafeBase64Encoder
         ).decode()
 
-        if Entry.query.filter_by(collection_id=collection_id, client_serial=client_serial).count() != 0:
+        if Entry.query.filter_by(
+                collection_id=collection_id,
+                client_serial=client_serial
+        ).count() != 0:
             return 'Client serial already used', 400
 
         entry = Entry(collection_id, client_serial)

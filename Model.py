@@ -38,7 +38,19 @@ class Collection(db.Model):
     submit_count = db.Column(db.Integer)
     status = db.Column(db.Enum(Status))
 
-    def __init__(self, attributes, attribute_y_index, fit_model, fit_arguments, description, response_start_time, response_end_time, client_verify_key, collection_private_key, collection_public_key):
+    def __init__(
+            self,
+            attributes,
+            attribute_y_index,
+            fit_model,
+            fit_arguments,
+            description,
+            response_start_time,
+            response_end_time,
+            client_verify_key,
+            collection_private_key,
+            collection_public_key
+    ):
         self.id = secrets.token_urlsafe(16)
         self.attributes = attributes
         self.attribute_y_index = attribute_y_index

@@ -81,7 +81,9 @@ class EnqueueResource(Resource):
             return 'Already enqueued', 400
         try:
             collection_private_key_decrypted = nacl.secret.SecretBox(
-                data['collection_private_key_secret'], encoder=nacl.encoding.URLSafeBase64Encoder).decrypt(collection.collection_private_key)
+                data['collection_private_key_secret'],
+                encoder=nacl.encoding.URLSafeBase64Encoder
+            ).decrypt(collection.collection_private_key)
         except:
             return 'Incorrect collection private key secret', 400
 

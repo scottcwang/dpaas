@@ -50,7 +50,14 @@ class RootResource(Resource):
             return 'Public key could not be parsed', 400
 
         # TODO refactor out
-        if data['fit_model'] not in ['GaussianNB', 'LogisticRegression', 'LinearRegression', 'KMeans', 'PCA', 'StandardScaler']:
+        if data['fit_model'] not in [
+                'GaussianNB',
+                'LogisticRegression',
+                'LinearRegression',
+                'KMeans',
+                'PCA',
+                'StandardScaler'
+        ]:
             return 'Fit model is not supported', 400
 
         # TODO check arguments are permissible for model

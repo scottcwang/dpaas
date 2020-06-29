@@ -23,7 +23,8 @@ class SubmitResource(Resource):
         if not form.validate():
             return 'Form data does not conform to schema, or CSRF token does not match', 400
 
-        if datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time:
+        if (datetime.datetime.now(datetime.timezone.utc) < collection.response_start_time
+                or datetime.datetime.now(datetime.timezone.utc) > collection.response_end_time):
             return 'Not within collection interval', 410
         if collection.status.value >= 0:
             return 'Already enqueued', 400
