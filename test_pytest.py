@@ -9,6 +9,7 @@ import secrets
 import pickle
 
 import nacl.signing
+import nacl.public
 import pytest
 import docker
 from dotenv import load_dotenv
@@ -135,9 +136,24 @@ Collection = namedtuple('Collection', [
 ])
 
 
+def decrypt_collection(resp_json, client_key):
+    collection_public_key = nacl.public.PublicKey(
+        base64.urlsafe_b64decode(resp_json['public_key_b64']))
+    client_private_key = client_key.signing_key.to_curve25519_private_key()
+    client_private_key_box = nacl.public.Box(
+        client_private_key, collection_public_key)
+
+    private_key_secret_decrypted = client_private_key_box.decrypt(
+        base64.urlsafe_b64decode(resp_json['private_key_secret']))
+    private_key_secret_b64 = base64.urlsafe_b64encode(
+        private_key_secret_decrypted).decode()
+
+    return Collection(resp_json['id'], resp_json['public_key_b64'], private_key_secret_b64)
+
+
 def create_collection(client, client_key):
     r = client.post(**root_req(client_key.verify_key_b64))
-    return Collection(**r.json)
+    return decrypt_collection(r.json, client_key)
 
 
 def voucher_req(collection, client_serial, client_key):
@@ -248,7 +264,7 @@ def test_voucher(client, client_key):
         + datetime.timedelta(seconds=10)
     ).timestamp()
     r = client.post(**root_req_dict)
-    past_collection = Collection(**r.json)
+    past_collection = decrypt_collection(r.json, client_key)
     time.sleep(20)
     r = client.post(**voucher_req(past_collection, 'a', client_key))
     assert r.status_code == 410 and r.json == 'Not within collection interval'
@@ -263,12 +279,12 @@ def test_voucher(client, client_key):
         + datetime.timedelta(minutes=120)
     ).timestamp()
     r = client.post(**root_req_dict)
-    past_collection = Collection(**r.json)
+    past_collection = decrypt_collection(r.json, client_key)
     r = client.post(**voucher_req(past_collection, 'a', client_key))
     assert r.status_code == 410 and r.json == 'Not within collection interval'
 
     r = client.post(**root_req(client_key.verify_key_b64))
-    enqueued_collection = Collection(**r.json)
+    enqueued_collection = decrypt_collection(r.json, client_key)
     r = client.post(**enqueue_req(enqueued_collection, client_key))
     r = client.post(**voucher_req(enqueued_collection, 'a', client_key))
     assert r.status_code == 400 and r.json == 'Already enqueued'
@@ -367,7 +383,7 @@ def test_entry(client, client_key):
         + datetime.timedelta(seconds=10)
     ).timestamp()
     r = client.post(**root_req_dict)
-    past_collection = Collection(**r.json)
+    past_collection = decrypt_collection(r.json, client_key)
     r = client.post(**voucher_req(past_collection, 'a', client_key))
     entry_serial = r.json['entry_serial']
     time.sleep(20)
@@ -375,7 +391,7 @@ def test_entry(client, client_key):
     assert r.status_code == 410 and r.json == 'Not within collection interval'
 
     r = client.post(**root_req(client_key.verify_key_b64))
-    enqueued_collection = Collection(**r.json)
+    enqueued_collection = decrypt_collection(r.json, client_key)
     r = client.post(**voucher_req(enqueued_collection, 'a', client_key))
     entry_serial = r.json['entry_serial']
     r = client.post(**enqueue_req(enqueued_collection, client_key))
@@ -453,7 +469,7 @@ def test_submit(client, client_key):
         + datetime.timedelta(seconds=10)
     ).timestamp()
     r = client.post(**root_req_dict)
-    past_collection = Collection(**r.json)
+    past_collection = decrypt_collection(r.json, client_key)
     r = client.post(**voucher_req(past_collection, 'a', client_key))
     entry_serial = r.json['entry_serial']
     r = client.get(
@@ -463,7 +479,7 @@ def test_submit(client, client_key):
     assert r.status_code == 410 and r.json == 'Not within collection interval'
 
     r = client.post(**root_req(client_key.verify_key_b64))
-    enqueued_collection = Collection(**r.json)
+    enqueued_collection = decrypt_collection(r.json, client_key)
     r = client.post(**voucher_req(enqueued_collection, 'a', client_key))
     entry_serial = r.json['entry_serial']
     r = client.get(**entry_req(enqueued_collection,
@@ -549,7 +565,7 @@ def status_req(collection):
 def test_status(client, client_key, queue_worker):
     root_req_dict = root_req(client_key.verify_key_b64)
     r = client.post(**root_req_dict)
-    collection = Collection(**r.json)
+    collection = decrypt_collection(r.json, client_key)
 
     status_resp_dict = {
         k: root_req_dict['json'][k]

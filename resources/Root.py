@@ -46,7 +46,6 @@ class RootResource(Resource):
                 data['client_verify_key'], nacl.encoding.URLSafeBase64Encoder)
         except:
             return 'Public key could not be parsed', 400
-        # TODO Challenge ownership of public key
 
         # TODO refactor out
         if data['fit_model'] not in ['GaussianNB', 'LogisticRegression', 'LinearRegression', 'KMeans', 'PCA', 'StandardScaler']:
@@ -60,10 +59,10 @@ class RootResource(Resource):
 
         collection_private_key_secret = secrets.token_bytes(
             nacl.secret.SecretBox.KEY_SIZE)
-        collection_private_key_decrypted = nacl.public.PrivateKey.generate()
-        collection_private_key = nacl.secret.SecretBox(
-            collection_private_key_secret).encrypt(bytes(collection_private_key_decrypted))
-        collection_public_key = collection_private_key_decrypted.public_key
+        collection_private_key = nacl.public.PrivateKey.generate()
+        collection_private_key_encrypted = nacl.secret.SecretBox(
+            collection_private_key_secret).encrypt(bytes(collection_private_key))
+        collection_public_key = collection_private_key.public_key
 
         collection = Collection(
             attributes=data['attributes'],
@@ -76,20 +75,25 @@ class RootResource(Resource):
             response_end_time=datetime.datetime.fromtimestamp(
                 data['response_end_time'], datetime.timezone.utc),
             client_verify_key=client_verify_key.encode(),
-            collection_private_key=bytes(collection_private_key),
+            collection_private_key=bytes(collection_private_key_encrypted),
             collection_public_key=collection_public_key.encode()
         )
 
         db.session.add(collection)
         db.session.commit()
 
-        # TODO place collection_private_key_secret in Box
+        client_public_key = client_verify_key.to_curve25519_public_key()
+        collection_private_key_box = nacl.public.Box(
+            collection_private_key, client_public_key)
+        collection_private_key_secret_encrypted = collection_private_key_box.encrypt(
+            collection_private_key_secret)
+
         return_value = {
             'id': collection.id,
             'public_key_b64': base64.urlsafe_b64encode(
                 collection_public_key.encode()).decode(),
             'private_key_secret': base64.urlsafe_b64encode(
-                collection_private_key_secret).decode()
+                collection_private_key_secret_encrypted).decode()
         }
 
         return return_value, 201
