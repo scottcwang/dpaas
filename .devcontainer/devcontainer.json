@@ -26,7 +26,7 @@
 		"python.testing.pytestPath": "/usr/local/py-utils/bin/pytest",
 		"python.linting.pylintArgs": [
 			"--load-plugins",
-			"pylint_flask,pylint_flask_sqlalchemy"
+			"pylint_flask,pylint_flask_sqlalchemy,pylint_pytest"
 		]
 	},
 

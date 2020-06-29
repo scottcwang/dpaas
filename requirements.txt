@@ -23,5 +23,6 @@ pynacl
 diffprivlib
 
 pytest
+pylint-pytest
 beautifulsoup4
 docker
