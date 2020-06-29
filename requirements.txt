@@ -1,6 +1,7 @@
 Flask
 flask-restful
 python-dotenv
+pylint-flask
 
 Flask-SQLAlchemy
 flask-marshmallow
@@ -10,6 +11,7 @@ Flask-Migrate
 Flask-Script
 SQLAlchemy
 psycopg2
+pylint-flask-sqlalchemy
 
 rq
 flask-redis
