@@ -98,9 +98,9 @@ class RootResource(Resource):
 
         return_value = {
             'id': collection.id,
-            'public_key_b64': base64.urlsafe_b64encode(
+            'public_key': base64.urlsafe_b64encode(
                 collection_public_key.encode()).decode(),
-            'private_key_secret': base64.urlsafe_b64encode(
+            'collection_private_key_secret': base64.urlsafe_b64encode(
                 collection_private_key_secret_encrypted).decode()
         }
 

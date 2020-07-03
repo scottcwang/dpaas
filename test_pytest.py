@@ -129,24 +129,24 @@ def root_req(client_verify_key_b64):
 
 Collection = namedtuple('Collection', [
     'id',
-    'public_key_b64',
-    'private_key_secret'
+    'public_key',
+    'collection_private_key_secret'
 ])
 
 
 def decrypt_collection(resp_json, client_key_fixture):
     collection_public_key = nacl.public.PublicKey(
-        base64.urlsafe_b64decode(resp_json['public_key_b64']))
+        base64.urlsafe_b64decode(resp_json['public_key']))
     client_private_key = client_key_fixture.signing_key.to_curve25519_private_key()
     client_private_key_box = nacl.public.Box(
         client_private_key, collection_public_key)
 
     private_key_secret_decrypted = client_private_key_box.decrypt(
-        base64.urlsafe_b64decode(resp_json['private_key_secret']))
+        base64.urlsafe_b64decode(resp_json['collection_private_key_secret']))
     private_key_secret_b64 = base64.urlsafe_b64encode(
         private_key_secret_decrypted).decode()
 
-    return Collection(resp_json['id'], resp_json['public_key_b64'], private_key_secret_b64)
+    return Collection(resp_json['id'], resp_json['public_key'], private_key_secret_b64)
 
 
 def create_collection(client_fixture, client_key_fixture):
@@ -156,7 +156,7 @@ def create_collection(client_fixture, client_key_fixture):
 
 def voucher_req(collection, client_serial, client_key_fixture):
     collection_public_key = nacl.public.PublicKey(
-        base64.urlsafe_b64decode(collection.public_key_b64))
+        base64.urlsafe_b64decode(collection.public_key))
 
     client_serial_encrypt = nacl.public.Box(
         client_key_fixture.signing_key.to_curve25519_private_key(),
@@ -166,7 +166,7 @@ def voucher_req(collection, client_serial, client_key_fixture):
     return {
         'path': '/' + collection.id + '/voucher',
         'json': {
-            'collection_private_key_secret': collection.private_key_secret,
+            'collection_private_key_secret': collection.collection_private_key_secret,
             'client_serial_encrypt': base64.urlsafe_b64encode(client_serial_encrypt).decode()
         }
     }
@@ -211,7 +211,7 @@ def enqueue_req(collection):
     return {
         'path': '/' + collection.id + '/enqueue',
         'json': {
-            'collection_private_key_secret': collection.private_key_secret
+            'collection_private_key_secret': collection.collection_private_key_secret
         }
     }
 
@@ -515,7 +515,7 @@ def queue_req(collection):
     return {
         'path': '/' + collection.id + '/enqueue',
         'json': {
-            'collection_private_key_secret': collection.private_key_secret
+            'collection_private_key_secret': collection.collection_private_key_secret
         }
     }
 
@@ -555,7 +555,7 @@ def status_req(collection):
     return {
         'path': '/' + collection.id + '/status',
         'json': {
-            'collection_private_key_secret': collection.private_key_secret
+            'collection_private_key_secret': collection.collection_private_key_secret
         }
     }
 
@@ -657,7 +657,7 @@ def test_status(client, client_key, queue_worker):
         }
 
     collection_public_key = nacl.public.PublicKey(
-        base64.urlsafe_b64decode(collection.public_key_b64))
+        base64.urlsafe_b64decode(collection.public_key))
     client_private_key = client_key.signing_key.to_curve25519_private_key()
     client_private_key_box = nacl.public.Box(
         client_private_key, collection_public_key)

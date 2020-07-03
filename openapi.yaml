@@ -68,10 +68,10 @@ paths:
                   id:
                     type: "string"
                     description: "Collection ID"
-                  public_key_b64:
+                  public_key:
                     type: "string"
                     description: "Collection public key. URL-safe-base64-encoded [Curve25519 public key](https://pynacl.readthedocs.io/en/stable/public/#nacl.public.PublicKey) that corresponds to the collection private key, which is used to encrypt the API secret"
-                  private_key_secret:
+                  collection_private_key_secret:
                     type: "string"
                     description: "API secret. Encrypted in a [Box](https://pynacl.readthedocs.io/en/stable/public/#nacl.public.Box) using the collection private key and client verify key, and URL-safe-base64-encoded"
         400:
