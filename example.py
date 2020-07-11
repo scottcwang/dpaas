@@ -10,7 +10,7 @@ import requests
 from nacl.signing import SigningKey
 from nacl.public import PublicKey, Box
 
-url = 'http://127.0.0.1:5000'
+url = 'https://scottcwang-dpaas.herokuapp.com'
 
 # Create a collection
 
