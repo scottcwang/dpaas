@@ -15,11 +15,21 @@
     <main class="container pt-3">
         <div class="jumbotron">
             {{ collection.description | markdown }}
+            {# TODO Display collection model and parameters #}
+            <details class="card">
+                <summary class="m-2">Details</summary>
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <th scope="row">Entry serial</th>
+                            <td>{{ entry_serial }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </details>
         </div>
         <form method="POST" action="/submit/{{ entry_serial }}">
-            {# TODO Display collection model and parameters #}
             {{ form.session_token }}
-            <span id='entry_serial'>{{ entry_serial }}</span>
             {% for i in range(attributes|count) %}
             <div class="form-group row">
                 {{ form['field_' ~ i].label(class_="col-sm-2 col-form-label") }}
