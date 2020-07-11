@@ -5,6 +5,8 @@ info:
   title: "Differential privacy as a service"
   contact:
     email: "wangsc@cs.wisc.edu"
+servers:
+  - url: https://scottcwang-dpaas.herokuapp.com
 paths:
   /:
     post:
