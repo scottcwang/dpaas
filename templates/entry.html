@@ -15,14 +15,36 @@
     <main class="container pt-3">
         <div class="jumbotron">
             {{ collection.description | markdown }}
-            {# TODO Display collection model and parameters #}
             <details class="card p-2">
                 <summary class="m-2">Technical details</summary>
                 <table class="table mt-3">
                     <tbody>
                         <tr>
                             <th scope="row">Entry serial</th>
-                            <td>{{ entry_serial }}</td>
+                            <td><code>{{ entry_serial }}</code></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Collection ID</th>
+                            <td><code>{{ collection.id }}</code></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Model type</th>
+                            <td><code>{{ collection.fit_model }}</code></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Model details</th>
+                            <td>
+                                <table class="table table-sm table-borderless">
+                                    <tbody>
+                                        {% for k, v in collection.fit_arguments.items() %}
+                                        <tr>
+                                            <th scope="row"><code>{{ k }}</code></th>
+                                            <td><code>{{ v }}</code></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
