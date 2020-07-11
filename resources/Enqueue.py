@@ -19,6 +19,10 @@ q = Queue(connection=redis_conn)
 
 
 def process(collection_id, collection_private_key_decrypted):
+    from run import create_app
+    app = create_app()
+    app.app_context().push()
+
     # TODO Handle exceptions
     collection = Collection.query.get(collection_id)
     if not collection:
