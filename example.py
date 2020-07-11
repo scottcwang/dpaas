@@ -16,33 +16,6 @@ url = 'http://127.0.0.1:5000'
 
 signing_key = SigningKey.generate()
 
-requests.request(
-    'POST',
-    url + '/',
-    json={
-        'attributes': ['Height / cm', 'Weight / kg'],
-        'fit_model': 'LinearRegression',
-        'attribute_y_index': 1,
-        'fit_arguments': {
-            'epsilon': 1
-        },
-        'description': '# Medical Study\n' +
-        'We would like to gather information about your height and weight. ' +
-        'Your data will be used to generate a differentially private model, ' +
-        'which means that the model is mathematically guaranteed to keep your individual data private.',
-        'client_verify_key': base64.urlsafe_b64encode(
-            bytes(signing_key.verify_key)).decode(),
-        'response_start_time': (
-            datetime.datetime.now(datetime.timezone.utc)
-            + datetime.timedelta()
-        ).timestamp(),
-        'response_end_time': (
-            datetime.datetime.now(datetime.timezone.utc)
-            + datetime.timedelta(days=60)
-        ).timestamp()
-    }
-)
-
 req = requests.request(
     'POST',
     url + '/',
@@ -51,7 +24,8 @@ req = requests.request(
         'fit_model': 'LinearRegression',
         'attribute_y_index': 1,
         'fit_arguments': {
-            'epsilon': 1
+            'epsilon': 1,
+            'data_norm': 1
         },
         'description': '# Medical Study\n' +
         'We would like to gather information about your height and weight. ' +
