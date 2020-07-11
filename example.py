@@ -14,8 +14,10 @@ url = 'https://scottcwang-dpaas.herokuapp.com'
 
 # Create a collection
 
+print('Generating signing key')
 signing_key = SigningKey.generate()
 
+print('Creating collection')
 req = requests.request(
     'POST',
     url + '/',
@@ -47,6 +49,8 @@ req = requests.request(
 resp = req.json()
 
 collection_id = resp['id']
+print('Received collection ID: ' + collection_id)
+
 collection_public_key = PublicKey(
     base64.urlsafe_b64decode(resp['public_key'])
 )
@@ -63,6 +67,7 @@ collection_private_key_secret = base64.urlsafe_b64encode(
         )
     )
 ).decode()
+print('Received collection private key secret: ' + collection_private_key_secret)
 
 user_entry_urls = []
 
@@ -70,6 +75,8 @@ for _ in range(3):
     # Register a voucher client serial, which will be used to redeem an entry form
 
     client_serial = secrets.token_urlsafe()
+    print('Registering client serial: ' + client_serial)
+
     client_serial_encrypt = base64.urlsafe_b64encode(
         collection_public_key_client_private_key_box.encrypt(
             client_serial.encode()
@@ -88,6 +95,7 @@ for _ in range(3):
     resp = req.json()
 
     entry_serial = resp['entry_serial']
+    print('Received corresponding entry serial: ' + entry_serial)
 
     timestamp = datetime.datetime.now().timestamp()
 
@@ -100,12 +108,13 @@ for _ in range(3):
     # Give this link to the user:
     user_entry_urls.append(url + '/entry/' + voucher)
 
-print('Visit each of the following URLs and enter some data:')
+print('-----\nVisit each of the following URLs and enter some data:')
 print('\n'.join(user_entry_urls))
 input('Press Enter when complete')
 
 # Request the model be fit
 
+print('Enqueuing model fitting task')
 req = requests.request(
     'POST',
     url + '/' + collection_id + '/enqueue',
@@ -117,6 +126,7 @@ req = requests.request(
 # Retrieve the fit model
 
 while True:
+    print('Checking if model fitting is complete')
     req = requests.request(
         'POST',
         url + '/' + collection_id + '/status',
@@ -134,3 +144,5 @@ model = pickle.loads(
         base64.urlsafe_b64decode(resp['result'])
     )
 )
+print('Received differentially private model:')
+print('weight = ' + str(model.coef_[0]) + ' * height + ' + str(model.intercept_))
