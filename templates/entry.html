@@ -12,8 +12,10 @@
 </head>
 
 <body>
-    <main class="container">
-        {{ collection.description | markdown }}
+    <main class="container pt-3">
+        <div class="jumbotron">
+            {{ collection.description | markdown }}
+        </div>
         <form method="POST" action="/submit/{{ entry_serial }}">
             {# TODO Display collection model and parameters #}
             {{ form.session_token }}
