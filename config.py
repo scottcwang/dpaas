@@ -7,7 +7,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 SQLALCHEMY_ECHO = False
 SQLALCHEMY_TRACK_MODIFICATIONS = True
-SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI")
+SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
 
 REDIS_URL = os.getenv("REDIS_URL")
 

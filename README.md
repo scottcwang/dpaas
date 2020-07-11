@@ -5,7 +5,7 @@ This is a Python web server that allows a client to configure a data collection 
 ## Run the server
 
 First, create an `.env` file in this directory with the following variables:
-- `SQLALCHEMY_DATABASE_URI`
+- `DATABASE_URL`
 - `REDIS_URL`
 
 Then, run:

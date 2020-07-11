@@ -40,7 +40,7 @@ def client():
         network='dpaas_devcontainer_default'
     )
     postgres_container.reload()
-    os.environ["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres:password@" + \
+    os.environ["DATABASE_URL"] = "postgresql://postgres:password@" + \
         postgres_container.attrs["Config"]["Hostname"] + ":5432"
 
     redis_pulled = False
