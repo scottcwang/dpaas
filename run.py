@@ -2,23 +2,23 @@ from flask import Flask
 
 
 def create_app():
-    app = Flask(__name__)
+    return_app = Flask(__name__)
 
-    app.config.from_envvar('DPAAS_CONFIG_PATH')
+    return_app.config.from_envvar('DPAAS_CONFIG_PATH')
 
     from app import api_bp
-    app.register_blueprint(api_bp)
+    return_app.register_blueprint(api_bp)
 
-    from resources.Entry import redis_conn
-    redis_conn.init_app(app)
+    from resources.Enqueue import redis_conn
+    redis_conn.init_app(return_app)
 
     from Model import db
-    db.init_app(app)
+    db.init_app(return_app)
 
     from flaskext.markdown import Markdown
-    Markdown(app)
+    Markdown(return_app)
 
-    return app
+    return return_app
 
 
 if __name__ == "__main__":

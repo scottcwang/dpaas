@@ -1,10 +1,12 @@
 openapi: "3.0.0"
 info:
   description: "Securely collects confidential data from users per a predefined schema, and runs it through a predefined differential privacy machine learning algorithm."
-  version: "0.0.1"
+  version: "0.0.2"
   title: "Differential privacy as a service"
   contact:
     email: "wangsc@cs.wisc.edu"
+servers:
+  - url: https://scottcwang-dpaas.herokuapp.com
 paths:
   /:
     post:
@@ -49,9 +51,9 @@ paths:
                 description:
                   type: "string"
                   description: "Will be rendered as Markdown and shown to the user"
-                public_key:
+                client_verify_key:
                   type: "string"
-                  description: "PEM-encoded public key, used to sign tokens"
+                  description: "Client verify key. URL-safe-base64-encoded [Ed25519 verify key](https://pynacl.readthedocs.io/en/stable/signing/#nacl.signing.VerifyKey) that corresponds to the client signing key, which is used to decrypt the API secret and sign vouchers"
                 response_start_time:
                   type: "string"
                   format: "date-time"
@@ -64,8 +66,16 @@ paths:
           content:
             application/json:
               schema:
-                type: "integer"
-                description: "Collection ID"
+                properties:
+                  id:
+                    type: "string"
+                    description: "Collection ID"
+                  public_key:
+                    type: "string"
+                    description: "Collection public key. URL-safe-base64-encoded [Curve25519 public key](https://pynacl.readthedocs.io/en/stable/public/#nacl.public.PublicKey) that corresponds to the collection private key, which is used to encrypt the API secret"
+                  collection_private_key_secret:
+                    type: "string"
+                    description: "API secret. Encrypted in a [Box](https://pynacl.readthedocs.io/en/stable/public/#nacl.public.Box) using the collection private key and client verify key, and URL-safe-base64-encoded"
         400:
           description: "Invalid input"
           content:
@@ -78,34 +88,39 @@ paths:
                 - "Public key could not be parsed"
                 - "Fit model is not supported"
                 - "attribute_y_index invalid"
-  /{collectionId}/token/{action}:
+  /{collectionId}/voucher:
     post:
-      summary: "Causes the server to expect a token, issued at the time of this request, for a particular action"
+      summary: "Registers the client serial of a voucher, issued at the time of this request to a user to redeem an entry form"
       requestBody:
-        description: "Unique nonce. Required for `entry` action"
         required: true
         content:
-          application/octet-stream:
+          application/json:
             schema:
-              type: "string"
+              type: "object"
+              properties:
+                collection_private_key_secret:
+                  type: "string"
+                  description: "API secret"
+                client_serial_encrypt:
+                  type: "string"
+                  description: "Client serial of the voucher issued to the user. Must be unique for this collection"
       parameters:
       - name: "collectionId"
         in: "path"
         required: true
         schema:
-          type: "integer"
-      - name: "action"
-        in: "path"
-        required: true
-        schema:
           type: "string"
-          enum:
-          - "entry"
-          - "enqueue"
-          - "status"
       responses:
         201:
           description: "Successful"
+          content:
+            application/json:
+              schema:
+                type: "object"
+                properties:
+                  entry_serial:
+                    type: "string"
+                    description: "Entry serial, to be included in the voucher issued to the user"
         400:
           description: "Invalid input"
           content:
@@ -113,25 +128,40 @@ paths:
               schema:
                 type: "string"
                 enum:
-                - "Unknown action"
-                - "No nonce provided for entry action"
+                - "Request is not JSON"
+                - "JSON payload does not conform to schema"
+                - "Already enqueued"
+                - "Incorrect collection private key secret"
+                - "Client serial already used"
         410:
           description: "Not within collection interval"
+          content:
+            application/json:
+              schema:
+                type: "string"
+                enum:
+                  - "Not within collection interval"
         404:
           description: "Collection ID not found"
-  /{collectionId}/entry/{token}:
+          content:
+            application/json:
+              schema:
+                type: "string"
+                enum:
+                  - "Collection ID not found"
+  /entry/{voucher}:
     get:
-      summary: "Returns a page to create or edit an entry for this collection"
+      summary: "Redeems a voucher and returns a page to enter values. Intended to be requested by the user"
       parameters:
-      - name: "collectionId"
+      - name: "voucher"
         in: "path"
         required: true
-        schema:
-          type: "integer"
-      - name: "token"
-        in: "path"
-        required: true
-        description: "Either:\n- a JWT, signed by the private key for this collection, containing the claims:\n  - `iat`, the time of a previous request to `/{collectionId}/token/entry`\n  - `sub`, the nonce in said request\n- a JWT previously issued by this server to edit an existing entry"
+        description: |
+          A voucher: a string with the following values, delimited by `,`:
+          - Client serial
+          - Entry serial
+          - UTC Posix timestamp of the response to `/{collectionId}/voucher`
+          in a [SignedMessage](https://pynacl.readthedocs.io/en/stable/signing/#nacl.signing.SignedMessage) signed by the client signing key
         schema:
           type: "string"
       responses:
@@ -144,41 +174,19 @@ paths:
               schema:
                 type: "string"
                 enum:
-                - "Token could not be decoded"
-                - "Token does not contain nonce"
-                - "Token does not contain issuance time"
-        403:
-          description: "Session error"
-          content:
-            application/json:
-              schema:
-                type: "string"
-                enum:
-                - "A corresponding session was not found"
-                - "Token not issued at same time as session request"
+                - "Voucher contains fewer than three values"
+                - "Voucher contains more than three values"
+                - "Timestamp invalid"
+                - "Voucher already redeemed for a form"
+                - "Voucher client serial does not match registration"
+                - "Voucher not issued and registered at same time"
+                - "Already enqueued"
+                - "Voucher could not be verified"
         410:
           description: "Not within collection interval"
         404:
-          description: "Collection ID not found"
-  /{collectionId}/submit:
-    post:
-      summary: "Creates or edits an entry for this collection. Can be called only via the form on the page retrieved by a `GET` request to `/{collectionId}/entry/{token}`"
-      parameters:
-      - name: "collectionId"
-        in: "path"
-        required: true
-        schema:
-          type: "integer"
-      responses:
-        200:
-          description: "URL of page to edit the submitted entry"
-          content:
-            application/json:
-              schema:
-                type: "string"
-        404:
-          description: "Collection ID not found"
-  /{collectionId}/enqueue/{token}:
+          description: "Entry does not exist"
+  /{collectionId}/enqueue:
     post:
       summary: "Causes the model for this collection to be enqueued for fitting"
       parameters:
@@ -186,13 +194,17 @@ paths:
         in: "path"
         required: true
         schema:
-          type: "integer"
-      - name: "token"
-        in: "path"
-        required: true
-        description: "A JWT, signed by the private key for this collection, containing the `iat` claim, the time of a previous request to `/{collectionId}/token/enqueue`"
-        schema:
           type: "string"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                collection_private_key_secret:
+                  type: "string"
+                  description: "API secret"
       responses:
         202:
           description: "Successfully enqueued"
@@ -203,21 +215,13 @@ paths:
               schema:
                 type: "string"
                 enum:
-                - "Token could not be decoded"
-                - "Token contains nonce for non-entry action"
+                - "Request is not JSON"
+                - "JSON payload does not conform to schema"
                 - "Already enqueued"
-        403:
-          description: "Session error"
-          content:
-            application/json:
-              schema:
-                type: "string"
-                enum:
-                - "A corresponding session was not found"
-                - "Token not issued at same time as session request"
+                - "Incorrect collection private key secret"
         404:
           description: "Collection ID not found"
-  /{collectionId}/status/{token}:
+  /{collectionId}/status:
     post:
       summary: "Obtains the status of this collection, or the fit object if the fit is complete"
       parameters:
@@ -225,31 +229,116 @@ paths:
         in: "path"
         required: true
         schema:
-          type: "integer"
-      - name: "token"
-        in: "path"
-        required: true
-        description: "A JWT, signed by the private key for this collection, containing the `iat` claim, the time of a previous request to `/{collectionId}/token/status`"
-        schema:
           type: "string"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                collection_private_key_secret:
+                  type: "string"
+                  description: "API secret"
       responses:
         200:
           description: "Pickled fit object from completed model"
           content:
-            application/octet-stream:
-              schema:
-                type: "string"
-        202:
-          description: "Processing"
-          content:
             application/json:
               schema:
-                type: "string"
-                enum:
-                - "Running"
-                - "Enqueued"
-        204:
-          description: "Not yet enqueued for processing"
+                oneOf:
+                - type: "object"
+                  properties:
+                    status:
+                      type: "string"
+                      enum:
+                      - "active"
+                      - "enqueued"
+                      - "running"
+                      - "complete"
+                    response_count:
+                      type: "integer"
+                      description: "Number of submitted responses"
+                    model:
+                      type: "object"
+                      description: "The model properties provided on the initial call to `/`"
+                      properties:
+                        attributes:
+                          type: "array"
+                          items:
+                            type: "string"
+                          description: "Will be shown to the user as the names of the data collection fields"
+                        fit_model:
+                          type: "string"
+                          enum:
+                          - "PCA"
+                          - "LinearRegression"
+                          - "GaussianNB"
+                          - "LogisticRegression"
+                          - "KMeans"
+                          - "StandardScaler"
+                          description: "The diffprivlib model class instantiator to call"
+                        attribute_y_index:
+                          type: "number"
+                          description: "If provided, must be an index within `attributes`"
+                        fit_arguments:
+                          type: "object"
+                          description: "Will be passed to the diffprivlib model class instantiator"
+                        description:
+                          type: "string"
+                          description: "Will be rendered as Markdown and shown to the user"
+                        response_start_time:
+                          type: "string"
+                          format: "date-time"
+                        response_end_time:
+                          type: "string"
+                          format: "date-time"
+                - type: "object"
+                  properties:
+                    status:
+                      type: "string"
+                      enum:
+                      - "complete"
+                    response_count:
+                      type: "integer"
+                      description: "Number of submitted responses"
+                    model:
+                      type: "object"
+                      description: "The model properties provided on the initial call to `/`"
+                      properties:
+                        attributes:
+                          type: "array"
+                          items:
+                            type: "string"
+                          description: "Will be shown to the user as the names of the data collection fields"
+                        fit_model:
+                          type: "string"
+                          enum:
+                          - "PCA"
+                          - "LinearRegression"
+                          - "GaussianNB"
+                          - "LogisticRegression"
+                          - "KMeans"
+                          - "StandardScaler"
+                          description: "The diffprivlib model class instantiator to call"
+                        attribute_y_index:
+                          type: "number"
+                          description: "If provided, must be an index within `attributes`"
+                        fit_arguments:
+                          type: "object"
+                          description: "Will be passed to the diffprivlib model class instantiator"
+                        description:
+                          type: "string"
+                          description: "Will be rendered as Markdown and shown to the user"
+                        response_start_time:
+                          type: "string"
+                          format: "date-time"
+                        response_end_time:
+                          type: "string"
+                          format: "date-time"
+                    result:
+                      type: "string"
+                      description: "URL-safe-base64-encoded pickle object of the fit result"
         400:
           description: "Invalid input"
           content:
@@ -257,18 +346,9 @@ paths:
               schema:
                 type: "string"
                 enum:
-                - "Token could not be decoded"
-                - "Token contains nonce for non-entry action"
-                - "Already enqueued"
-        403:
-          description: "Session error"
-          content:
-            application/json:
-              schema:
-                type: "string"
-                enum:
-                - "A corresponding session was not found"
-                - "Token not issued at same time as session request"
+                - "Request is not JSON"
+                - "JSON payload does not conform to schema"
+                - "Incorrect collection private key secret"
         404:
           description: "Collection ID not found"
 externalDocs:
