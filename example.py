@@ -64,38 +64,45 @@ collection_private_key_secret = base64.urlsafe_b64encode(
     )
 ).decode()
 
-# Register a voucher client serial, which will be used to redeem an entry form
+user_entry_urls = []
 
-client_serial = secrets.token_urlsafe()
-client_serial_encrypt = base64.urlsafe_b64encode(
-    collection_public_key_client_private_key_box.encrypt(
-        client_serial.encode()
+for _ in range(3):
+    # Register a voucher client serial, which will be used to redeem an entry form
+
+    client_serial = secrets.token_urlsafe()
+    client_serial_encrypt = base64.urlsafe_b64encode(
+        collection_public_key_client_private_key_box.encrypt(
+            client_serial.encode()
+        )
+    ).decode()
+
+    req = requests.request(
+        'POST',
+        url + '/' + collection_id + '/voucher',
+        json={
+            'collection_private_key_secret': collection_private_key_secret,
+            'client_serial_encrypt': client_serial_encrypt
+        }
     )
-).decode()
 
-req = requests.request(
-    'POST',
-    url + '/' + collection_id + '/voucher',
-    json={
-        'collection_private_key_secret': collection_private_key_secret,
-        'client_serial_encrypt': client_serial_encrypt
-    }
-)
+    resp = req.json()
 
-resp = req.json()
+    entry_serial = resp['entry_serial']
 
-entry_serial = resp['entry_serial']
+    timestamp = datetime.datetime.now().timestamp()
 
-timestamp = datetime.datetime.now().timestamp()
+    voucher = base64.urlsafe_b64encode(
+        signing_key.sign(
+            (client_serial + ',' + entry_serial + ',' + str(timestamp)).encode()
+        )
+    ).decode()
 
-voucher = base64.urlsafe_b64encode(
-    signing_key.sign(
-        (client_serial + ',' + entry_serial + ',' + str(timestamp)).encode()
-    )
-).decode()
+    # Give this link to the user:
+    user_entry_urls.append(url + '/entry/' + voucher)
 
-# Give this link to the user:
-user_entry_url = url + '/entry/' + voucher
+print('Visit each of the following URLs and enter some data:')
+print('\n'.join(user_entry_urls))
+input('Press Enter when complete')
 
 # Request the model be fit
 
