@@ -15,7 +15,7 @@ import docker
 from dotenv import load_dotenv
 import flask_migrate
 from bs4 import BeautifulSoup
-from rq import SimpleWorker
+from rq import Worker
 
 from run import create_app
 from Model import db
@@ -537,7 +537,7 @@ def test_queue(client, client_key):
 
 @pytest.fixture(scope='session')
 def queue_worker():
-    return SimpleWorker([q], connection=q.connection)
+    return Worker([q], connection=q.connection)
 
 
 def status_req(collection):
