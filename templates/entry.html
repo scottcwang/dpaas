@@ -12,19 +12,21 @@
 </head>
 
 <body>
-    {{ collection.description | markdown }}
-    <form method="POST" action="/submit/{{ entry_serial }}">
-        {# TODO Display collection model and parameters #}
-        {{ form.session_token }}
-        <span id='entry_serial'>{{ entry_serial }}</span>
-        {% for i in range(attributes|count) %}
-        {{ form['field_' ~ i].label }}
-        {{ form['field_' ~ i] }}
-        <br>
-        {% endfor %}
-        <input type="submit" value="Go">
-    </form>
-    <p>This form expires at {{ collection.response_end_time }}</p>
+    <main class="container">
+        {{ collection.description | markdown }}
+        <form method="POST" action="/submit/{{ entry_serial }}">
+            {# TODO Display collection model and parameters #}
+            {{ form.session_token }}
+            <span id='entry_serial'>{{ entry_serial }}</span>
+            {% for i in range(attributes|count) %}
+            {{ form['field_' ~ i].label }}
+            {{ form['field_' ~ i] }}
+            <br>
+            {% endfor %}
+            <input type="submit" value="Go">
+        </form>
+        <p>This form expires at {{ collection.response_end_time }}</p>
+    </main>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
         integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj"
