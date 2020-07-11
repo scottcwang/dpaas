@@ -13,6 +13,8 @@ REDIS_URL = os.getenv("REDIS_URL")
 
 SECRET_KEY = os.urandom(32)
 
+WTF_CSRF_ENABLED = False
+
 # How to delete the database for Heroku PostgreSQL:
 # docker run -it postgres bash
 # apt update

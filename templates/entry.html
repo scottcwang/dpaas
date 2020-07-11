@@ -3,7 +3,6 @@
 {{ collection.description | markdown }}
 <form method="POST" action="/submit/{{ entry_serial }}">
     {# TODO Display collection model and parameters #}
-    {{ form.csrf_token }}
     {{ form.session_token }}
     <span id='entry_serial'>{{ entry_serial }}</span>
     {% for i in range(attributes|count) %}

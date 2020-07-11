@@ -185,11 +185,10 @@ def entry_req(client_serial, entry_serial, client_key_fixture):
     }
 
 
-def submit_req(entry_serial, csrf_token_form, session_token, attr0, attr1):
+def submit_req(entry_serial, session_token, attr0, attr1):
     return {
         'path': '/submit/' + entry_serial,
         'data': {
-            'csrf_token': csrf_token_form,
             'session_token': session_token,
             'field_0': attr0,
             'field_1': attr1
@@ -425,13 +424,11 @@ def test_entry(client, client_key):
 
 def parse_entry_form(data):
     soup = BeautifulSoup(data, features="html.parser")
-    csrf_token_form = soup.find(id='csrf_token')['value']
     session_token = soup.find(id='session_token')['value']
     entry_serial = soup.find(id='entry_serial').string
 
     return {
         'entry_serial': entry_serial,
-        'csrf_token_form': csrf_token_form,
         'session_token': session_token
     }
 
@@ -449,18 +446,10 @@ def test_submit(client, client_key):
     r = client.get(
         **redeem_voucher_for_entry_form(client, collection, client_key))
     submit_req_dict = submit_req(attr0=0, attr1=1, **parse_entry_form(r.data))
-    submit_req_dict['data']['csrf_token'] = 'a'
-    r = client.post(**submit_req_dict)
-    assert r.status_code == 400 \
-        and r.json == 'Form data does not conform to schema, or CSRF token does not match'
-
-    r = client.get(
-        **redeem_voucher_for_entry_form(client, collection, client_key))
-    submit_req_dict = submit_req(attr0=0, attr1=1, **parse_entry_form(r.data))
     del submit_req_dict['data']['field_0']
     r = client.post(**submit_req_dict)
     assert r.status_code == 400 \
-        and r.json == 'Form data does not conform to schema, or CSRF token does not match'
+        and r.json == 'Form data does not conform to schema'
 
     root_req_dict = root_req(client_key.verify_key_b64)
     root_req_dict['json']['response_end_time'] = (
