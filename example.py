@@ -116,15 +116,18 @@ req = requests.request(
 
 # Retrieve the fit model
 
-req = requests.request(
-    'POST',
-    url + '/' + collection_id + '/status',
-    json={
-        'collection_private_key_secret': collection_private_key_secret
-    }
-)
+while True:
+    req = requests.request(
+        'POST',
+        url + '/' + collection_id + '/status',
+        json={
+            'collection_private_key_secret': collection_private_key_secret
+        }
+    )
+    resp = req.json()
 
-resp = req.json()
+    if resp['status'] == 'complete':
+        break
 
 model = pickle.loads(
     collection_public_key_client_private_key_box.decrypt(
