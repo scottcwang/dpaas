@@ -48,4 +48,4 @@ class SubmitResource(Resource):
         db.session.add(collection)
 
         db.session.commit()
-        return None
+        return 'Submission accepted'
